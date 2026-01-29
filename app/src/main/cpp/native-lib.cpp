@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <android/log.h>
 #include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <condition_variable>
 #include <cstdarg>
@@ -142,6 +143,33 @@ void reportErrorToJava(const char *fmt, ...) {
     jstring jMsg = env->NewStringUTF(buffer);
     env->CallVoidMethod(serviceObj, mid, jMsg);
     env->DeleteLocalRef(jMsg);
+  }
+  env->DeleteLocalRef(cls);
+
+  if (attached) {
+    javaVM->DetachCurrentThread();
+  }
+}
+
+// Helper to report Stream State (Idle/Streaming)
+void reportStreamStateToJava(bool isStreaming) {
+  if (!javaVM || !serviceObj) return;
+
+  JNIEnv *env;
+  bool attached = false;
+  int getEnvStat = javaVM->GetEnv((void **)&env, JNI_VERSION_1_6);
+
+  if (getEnvStat == JNI_EDETACHED) {
+    if (javaVM->AttachCurrentThread(&env, nullptr) != 0) return;
+    attached = true;
+  } else if (getEnvStat != JNI_OK) {
+    return;
+  }
+
+  jclass cls = env->GetObjectClass(serviceObj);
+  jmethodID mid = env->GetMethodID(cls, "onNativeStreamState", "(Z)V");
+  if (mid) {
+    env->CallVoidMethod(serviceObj, mid, (jboolean)isStreaming);
   }
   env->DeleteLocalRef(cls);
 
@@ -434,8 +462,6 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   while (isRunning &&
          rb.available() < (rate * preroll_ms / 1000) * bytes_per_frame) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    if (wait_count++ > 200)
-      break; // 1s Safety timeout
   }
   LOGD("[Native] Host opened device (Streaming started).");
   reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
@@ -446,25 +472,39 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
 
   // Consume Loop
   int stats_counter = 0;
-  while (isRunning) {
-    // Re-send stats approx every 1 second (10 * 100ms timeout)
-    // Actually, buffer read is fast. Let's count bytes or loops.
-    // If rate is 48000, 1 sec is 48000 frames.
-    // This is a rough heartbeat.
-    if (++stats_counter > 500) {
-      reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
-      stats_counter = 0;
-    }
+  bool isStreaming = true; // Initially true after pre-roll
+  auto lastDataTime = std::chrono::steady_clock::now();
 
+  while (isRunning) {
+    auto now = std::chrono::steady_clock::now();
     size_t read_bytes = rb.read(p_buf.data(), burstBytes);
 
     if (read_bytes > 0) {
+      lastDataTime = now;
+      if (!isStreaming) {
+          isStreaming = true;
+          // Resume detected: Force immediate stats report to set UI to "Streaming"
+          reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
+          stats_counter = 0; 
+      }
+      
       AAudioStream_write(stream, p_buf.data(), read_bytes / bytes_per_frame,
                          100000000); // 100ms timeout
     } else {
-      // Buffer empty. Just wait a bit to avoid busy spinning.
-      // No complex hysteresis or logging.
+      // Buffer empty. Check for timeout (Idle detection)
+      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastDataTime).count();
+      if (isStreaming && elapsed > 1000) {
+           isStreaming = false;
+           reportStreamStateToJava(false); // Notify Java to show "Waiting..."
+           LOGD("[Native] Stream idle for 1s. State -> Waiting.");
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    // Periodic stats update (only when streaming)
+    if (isStreaming && ++stats_counter > 500) {
+      reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
+      stats_counter = 0;
     }
   }
 

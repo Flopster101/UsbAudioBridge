@@ -86,6 +86,15 @@ class AudioService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    // Called from C++ JNI
+    fun onNativeStreamState(isStreaming: Boolean) {
+        if (!isStreaming) {
+            // Re-broadcast "Active" state to reset UI to "Waiting for Host..."
+            // "Streaming" state is set via onNativeStats (ACTION_STATS_UPDATE)
+            broadcastState()
+        }
+    }
+
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
     var isBridgeRunning = false
