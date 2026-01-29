@@ -19,7 +19,7 @@ object UsbGadgetManager {
 
     
     private const val MANUFACTURER = "FloppyKernel Project"
-    private const val PRODUCT = "Android USB Audio Monitor"
+    private const val PRODUCT = "USB Audio Bridge"
 
     // Suspend function to run on IO thread
     suspend fun forceUnbind(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
