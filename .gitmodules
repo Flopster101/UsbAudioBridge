@@ -1,0 +1,3 @@
+[submodule "app/src/main/cpp/tinyalsa"]
+	path = app/src/main/cpp/tinyalsa
+	url = https://github.com/tinyalsa/tinyalsa.git

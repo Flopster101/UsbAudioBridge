@@ -1,0 +1,14 @@
+*.iml
+.gradle
+local.properties
+.idea
+.DS_Store
+build/
+*/build/
+.externalNativeBuild
+.cxx
+captures/
+*.so
+*.o
+*.a
+!app/src/main/cpp/tinyalsa/lib/README.md
