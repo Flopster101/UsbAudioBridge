@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <android/log.h>
 #include <atomic>
+#include <cerrno>
 #include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <jni.h>
 #include <mutex>
+#include <poll.h>
 #include <string>
 #include <sys/resource.h>
 #include <sys/syscall.h>
@@ -298,8 +300,11 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
         break;
       }
 
-      if (pcm)
+      if (pcm) {
+        LOGE("[Native] Config %zu failed: %s", p_size, pcm_get_error(pcm));
         pcm_close(pcm);
+        pcm = nullptr;
+      }
     }
 
     if (opened)
@@ -311,8 +316,10 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
 
   if (!opened || !isRunning) {
     LOGE("[Native] Error: Failed to open PCM after retries.");
-    if (pcm)
+    if (pcm) {
       pcm_close(pcm);
+      pcm = nullptr;
+    }
     isRunning = false;
     return;
   }
@@ -338,6 +345,12 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
       readErrorCount = 0;
     } else {
       // Failed read
+      if (errno == EAGAIN) {
+        // No data available yet. Wait slightly and check isRunning.
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        continue;
+      }
+
       readErrorCount++;
 
       const char *err_msg = pcm_get_error(pcm);
@@ -366,7 +379,10 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
       pcm_prepare(pcm);
     }
   }
-  pcm_close(pcm);
+  if (pcm) {
+    pcm_close(pcm);
+    pcm = nullptr;
+  }
   LOGD("[Native] Host closed device (Capture stopped).");
 }
 
@@ -465,7 +481,9 @@ Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
 
   // Wait for previous instance to clean up
   int safety = 0;
-  while (!isFinished && safety++ < 50) { // Max 500ms
+  // Increase timeout to 3s (300 * 10ms) to allow for 1s sleep in captureLoop +
+  // cleanup
+  while (!isFinished && safety++ < 300) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
