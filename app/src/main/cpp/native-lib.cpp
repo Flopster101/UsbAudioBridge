@@ -589,6 +589,96 @@ public:
     int getBurstFrames() override { return 192; } // Default approximate burst
 };
 
+// --- Legacy Java AudioTrack Engine ---
+class JavaAudioTrackEngine : public AudioEngine {
+    jclass serviceClass = nullptr;
+    jmethodID midInit = nullptr;
+    jmethodID midStart = nullptr;
+    jmethodID midWrite = nullptr;
+    jmethodID midStop = nullptr;
+    jmethodID midRelease = nullptr;
+    bool prepared = false;
+
+    // Helper to get ENV for the current thread
+    JNIEnv* getEnv() {
+        if (!javaVM) return nullptr;
+        JNIEnv* env;
+        int status = javaVM->GetEnv((void**)&env, JNI_VERSION_1_6);
+        if (status == JNI_EDETACHED) {
+            if (javaVM->AttachCurrentThread(&env, nullptr) != 0) {
+                return nullptr;
+            }
+        }
+        return env;
+    }
+
+public:
+    bool open(int rate, int channelCount) override {
+        JNIEnv* env = getEnv();
+        if (!env || !serviceObj) return false;
+
+        serviceClass = env->GetObjectClass(serviceObj);
+        midInit = env->GetMethodID(serviceClass, "initAudioTrack", "(II)I");
+        midStart = env->GetMethodID(serviceClass, "startAudioTrack", "()V");
+        midWrite = env->GetMethodID(serviceClass, "writeAudioTrack", "(Ljava/nio/ByteBuffer;I)V");
+        midStop = env->GetMethodID(serviceClass, "stopAudioTrack", "()V");
+        midRelease = env->GetMethodID(serviceClass, "releaseAudioTrack", "()V");
+
+        if (!midInit || !midStart || !midWrite || !midStop || !midRelease) {
+            LOGE("[Native] Failed to find AudioTrack methods");
+            env->DeleteLocalRef(serviceClass);
+            return false;
+        }
+
+        int success = env->CallIntMethod(serviceObj, midInit, rate, channelCount);
+        env->DeleteLocalRef(serviceClass);
+        
+        prepared = (success > 0);
+        return prepared;
+    }
+
+    void start() override {
+        JNIEnv* env = getEnv();
+        if (env && prepared && serviceObj) {
+            env->CallVoidMethod(serviceObj, midStart);
+        }
+    }
+
+    void write(const uint8_t* data, size_t sizeBytes) override {
+        JNIEnv* env = getEnv();
+        if (env && prepared && serviceObj) {
+            // Create DirectByteBuffer to avoid copy
+            // Note: 'data' pointer must remain valid during the call.
+            // Since this is synchronous, it's fine.
+            jobject byteBuffer = env->NewDirectByteBuffer((void*)data, sizeBytes);
+            if (byteBuffer) {
+                env->CallVoidMethod(serviceObj, midWrite, byteBuffer, (jint)sizeBytes);
+                env->DeleteLocalRef(byteBuffer);
+            }
+        }
+    }
+
+    void stop() override {
+        JNIEnv* env = getEnv();
+        if (env && prepared && serviceObj) {
+            env->CallVoidMethod(serviceObj, midStop);
+        }
+    }
+
+    void close() override {
+        JNIEnv* env = getEnv();
+        if (env && prepared && serviceObj) {
+            env->CallVoidMethod(serviceObj, midRelease);
+        }
+        // If we attached this thread, we should detach?
+        // bridgeTask logic detaches at end usually if it was attached.
+        // Actually, AttachCurrentThread is no-op if already attached.
+        // We let the thread exit cleanup handle it, or javaVM->DetachCurrentThread() at end of task.
+    }
+
+    int getBurstFrames() override { return 480; } // 10ms typical
+};
+
 
 // --- Bridge Logic ---
 void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames, int engineType) {
@@ -614,6 +704,9 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
   if (engineType == 1) {
       engine = new OpenSLEngine();
       LOGD("[Native] Using OpenSL ES Engine");
+  } else if (engineType == 2) {
+      engine = new JavaAudioTrackEngine();
+      LOGD("[Native] Using Legacy AudioTrack Engine");
   } else {
       engine = new AAudioEngine();
       LOGD("[Native] Using AAudio Engine");
@@ -691,7 +784,15 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
   c_thread.join();
   LOGD("[Native] Bridge task finished.");
   reportStateToJava(0); // 0 = STOPPED
-  isFinished = true; // Signal we are mostly done (safe to restart)
+  isFinished = true; // Signal we are mostly done (safe to restart) 
+  
+  // Detach thread if attached (safe to call even if not attached? No, better check)
+  // But we reused helper functions that attach/detach locally.
+  // Only JavaAudioTrackEngine calls GetEnv/Attach.
+  // Standard JNI practice: Detach if you Attached.
+  if (javaVM) {
+      javaVM->DetachCurrentThread();
+  }
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

@@ -43,9 +43,74 @@ class AudioService : Service() {
         
         const val ENGINE_AAUDIO = 0
         const val ENGINE_OPENSL = 1
+        const val ENGINE_AUDIOTRACK = 2
         
         init {
             System.loadLibrary("usbaudio")
+        }
+    }
+
+    private var audioTrack: android.media.AudioTrack? = null
+
+    // Called from C++ JNI
+    fun initAudioTrack(rate: Int, channels: Int): Int {
+        try {
+            val channelConfig = if (channels == 1) android.media.AudioFormat.CHANNEL_OUT_MONO else android.media.AudioFormat.CHANNEL_OUT_STEREO
+            val format = android.media.AudioFormat.ENCODING_PCM_16BIT
+            val minBuf = android.media.AudioTrack.getMinBufferSize(rate, channelConfig, format)
+            val bufferSize = kotlin.math.max(minBuf, rate / 10 * 4) // ~400ms buffer for safety
+
+            audioTrack = android.media.AudioTrack.Builder()
+                .setAudioAttributes(android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build())
+                .setAudioFormat(android.media.AudioFormat.Builder()
+                    .setEncoding(format)
+                    .setSampleRate(rate)
+                    .setChannelMask(channelConfig)
+                    .build())
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+                .build()
+            
+            return 1 // Success
+        } catch (e: Exception) {
+            Log.e(TAG, "AudioTrack init failed", e)
+            return 0 // Fail
+        }
+    }
+
+    // Called from C++ JNI
+    fun startAudioTrack() {
+        audioTrack?.play()
+    }
+
+    // Called from C++ JNI
+    fun writeAudioTrack(buffer: java.nio.ByteBuffer, size: Int) {
+        if (audioTrack == null) return
+        audioTrack?.write(buffer, size, android.media.AudioTrack.WRITE_BLOCKING)
+    }
+
+    // Called from C++ JNI
+    fun stopAudioTrack() {
+        try {
+            if (audioTrack?.playState == android.media.AudioTrack.PLAYSTATE_PLAYING) {
+                audioTrack?.stop()
+            }
+            audioTrack?.flush()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping AudioTrack", e)
+        }
+    }
+
+    // Called from C++ JNI
+    fun releaseAudioTrack() {
+        try {
+            audioTrack?.release()
+            audioTrack = null
+        } catch (e: Exception) {
+             Log.e(TAG, "Error releasing AudioTrack", e)
         }
     }
 

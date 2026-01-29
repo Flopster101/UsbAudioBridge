@@ -636,7 +636,10 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         FilterChip(
                             selected = state.engineTypeOption == 0,
                             onClick = { onEngineTypeChange(0) },
@@ -647,7 +650,25 @@ fun SettingsScreen(
                             onClick = { onEngineTypeChange(1) },
                             label = { Text("OpenSL ES") }
                         )
+                        FilterChip(
+                            selected = state.engineTypeOption == 2,
+                            onClick = { onEngineTypeChange(2) },
+                            label = { Text("AudioTrack") }
+                        )
                     }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    val desc = when(state.engineTypeOption) {
+                        0 -> "AAudio: Low latency, high performance. Recommended for Android 8.1+."
+                        1 -> "OpenSL ES: Native audio standard. Good alternative if AAudio has glitches."
+                        2 -> "AudioTrack: Legacy Java-based audio. Highest compatibility, higher latency."
+                        else -> ""
+                    }
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
