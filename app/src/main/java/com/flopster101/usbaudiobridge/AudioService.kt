@@ -114,7 +114,7 @@ class AudioService : Service() {
         }
     }
 
-    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int)
+    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int)
     external fun stopAudioBridge()
 
     // Called from C++ JNI
@@ -268,7 +268,7 @@ class AudioService : Service() {
         return UsbGadgetManager.isGadgetActive()
     }
 
-    fun enableGadget() {
+    fun enableGadget(sampleRate: Int) {
         serviceScope.launch {
              if (UsbGadgetManager.isGadgetActive()) {
                   UsbGadgetManager.applySeLinuxPolicy { msg -> broadcastLog(msg) }
@@ -276,8 +276,8 @@ class AudioService : Service() {
                   return@launch
              }
              
-             broadcastLog("[App] Setting up USB gadget config...")
-             val success = UsbGadgetManager.enableGadget { msg -> broadcastLog(msg) }
+             broadcastLog("[App] Setting up USB gadget config ($sampleRate Hz)...")
+             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate)
              if (success) {
                   broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
@@ -306,7 +306,7 @@ class AudioService : Service() {
         }
     }
 
-    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0) {
+    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000) {
         if (isBridgeRunning) return
         
         serviceScope.launch {
@@ -318,8 +318,8 @@ class AudioService : Service() {
                 return@launch
             }
 
-            broadcastLog("[App] Starting native capture on card $cardId...")
-            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType)
+            broadcastLog("[App] Starting native capture on card $cardId ($sampleRate Hz)...")
+            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate)
             
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING

@@ -10,7 +10,6 @@ object UsbGadgetManager {
     private const val TAG = "UsbGadgetManager"
     
     private const val GADGET_ROOT = "/config/usb_gadget/g1"
-    private const val SAMPLE_RATE = 48000
     private const val CH_MASK = 3
     private const val SAMPLE_SIZE = 2
     
@@ -69,8 +68,38 @@ object UsbGadgetManager {
          return p.inputStream.bufferedReader().readText().trim()
     }
 
-    suspend fun enableGadget(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
-        logCallback("[Gadget] Configuring UAC2 gadget...")
+    private fun getPidForRate(rate: Int): String {
+        return when (rate) {
+            48000 -> "0x0104"
+            44100 -> "0x0105"
+            32000 -> "0x0106"
+            22050 -> "0x0107"
+            88200 -> "0x0108"
+            96000 -> "0x0109"
+            192000 -> "0x010A"
+            else -> "0x010B"
+        }
+    }
+
+    private fun getBcdDeviceForRate(rate: Int): String {
+        return when (rate) {
+            44100 -> "0x0244"
+            48000 -> "0x0248"
+            88200 -> "0x0288"
+            96000 -> "0x0296"
+            192000 -> "0x0292"
+            32000 -> "0x0232"
+            22050 -> "0x0222"
+            else -> "0x0200"
+        }
+    }
+
+    private fun getSerialNumberForRate(rate: Int): String {
+        return "UAM-SR$rate"
+    }
+
+    suspend fun enableGadget(logCallback: (String) -> Unit, sampleRate: Int = 48000): Boolean = withContext(Dispatchers.IO) {
+        logCallback("[Gadget] Configuring UAC2 gadget ($sampleRate Hz)...")
         
         if (!forceUnbind(logCallback)) {
              logCallback("[Gadget] Aborting: Could not release USB hardware.")
@@ -81,6 +110,10 @@ object UsbGadgetManager {
              logCallback("[Gadget] Aborting: Could not release USB hardware.")
              return@withContext false
         }
+        
+        val bcdDevice = getBcdDeviceForRate(sampleRate)
+        val pid = getPidForRate(sampleRate)
+        val serial = getSerialNumberForRate(sampleRate)
         
         // Setup configfs structure first
         val configCommands = listOf(
@@ -90,15 +123,15 @@ object UsbGadgetManager {
             
             // Set Device Identity (Before creating functions)
             "echo \"$VENDOR_ID\" > $GADGET_ROOT/idVendor",
-            "echo \"$PRODUCT_ID\" > $GADGET_ROOT/idProduct",
-            "echo \"0x0200\" > $GADGET_ROOT/bcdDevice",     // v2.0.0
+            "echo \"$pid\" > $GADGET_ROOT/idProduct",
+            "echo \"$bcdDevice\" > $GADGET_ROOT/bcdDevice",     // Version varies by rate
             "echo \"0x0200\" > $GADGET_ROOT/bcdUSB",        // USB 2.0
             
             "mkdir -p $GADGET_ROOT/functions/uac2.0",
-            "echo $SAMPLE_RATE > $GADGET_ROOT/functions/uac2.0/p_srate",
+            "echo $sampleRate > $GADGET_ROOT/functions/uac2.0/p_srate",
             "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/p_chmask",
             "echo $SAMPLE_SIZE > $GADGET_ROOT/functions/uac2.0/p_ssize",
-            "echo $SAMPLE_RATE > $GADGET_ROOT/functions/uac2.0/c_srate",
+            "echo $sampleRate > $GADGET_ROOT/functions/uac2.0/c_srate",
             "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/c_chmask",
             "echo $SAMPLE_SIZE > $GADGET_ROOT/functions/uac2.0/c_ssize",
             
@@ -107,7 +140,8 @@ object UsbGadgetManager {
             
             "mkdir -p $GADGET_ROOT/strings/0x409",
             "echo \"$MANUFACTURER\" > $GADGET_ROOT/strings/0x409/manufacturer",
-            "echo \"$PRODUCT\" > $GADGET_ROOT/strings/0x409/product",
+            "echo \"$PRODUCT ($sampleRate Hz)\" > $GADGET_ROOT/strings/0x409/product",
+            "echo \"$serial\" > $GADGET_ROOT/strings/0x409/serialnumber",
             
             // Set Configuration String (Important for Windows display in some views)
             "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409",
@@ -124,6 +158,9 @@ object UsbGadgetManager {
             logCallback("[Gadget] Failed to configure gadget structure.")
             return@withContext false
         }
+        
+        // Wait for system to settle before binding
+        Thread.sleep(1000)
         
         // Attempt to bind with retries (Critical Step)
         if (bindGadgetWithRetry(logCallback)) {

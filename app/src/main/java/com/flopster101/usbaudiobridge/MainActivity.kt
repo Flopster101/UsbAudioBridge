@@ -17,6 +17,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,6 +95,9 @@ class SettingsRepository(context: Context) {
 
     fun saveEngineType(type: Int) = prefs.edit().putInt("engine_type", type).apply()
     fun getEngineType(): Int = prefs.getInt("engine_type", 0)
+
+    fun saveSampleRate(rate: Int) = prefs.edit().putInt("sample_rate", rate).apply()
+    fun getSampleRate(): Int = prefs.getInt("sample_rate", 48000)
 
     fun resetDefaults() {
         prefs.edit().clear().apply()
@@ -177,7 +182,8 @@ class MainActivity : ComponentActivity() {
         uiState = uiState.copy(
             bufferSize = settingsRepo.getBufferSize(),
             periodSizeOption = settingsRepo.getPeriodSize(),
-            engineTypeOption = settingsRepo.getEngineType()
+            engineTypeOption = settingsRepo.getEngineType(),
+            sampleRateOption = settingsRepo.getSampleRate()
         )
         
         // Start Service
@@ -200,7 +206,7 @@ class MainActivity : ComponentActivity() {
                     state = uiState,
                     onToggleGadget = { enable ->
                          if (enable) {
-                             audioService?.enableGadget()
+                             audioService?.enableGadget(uiState.sampleRateOption)
                              uiState = uiState.copy(isGadgetEnabled = true)
                          } else {
                              audioService?.stopBridge()
@@ -211,7 +217,7 @@ class MainActivity : ComponentActivity() {
                         if (uiState.isServiceRunning) {
                              audioService?.stopAudioOnly()
                         } else {
-                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption, uiState.engineTypeOption)
+                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption, uiState.engineTypeOption, uiState.sampleRateOption)
                         }
                     },
                     onBufferSizeChange = { 
@@ -226,12 +232,17 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(engineTypeOption = it)
                         settingsRepo.saveEngineType(it)
                     },
+                    onSampleRateChange = {
+                        uiState = uiState.copy(sampleRateOption = it)
+                        settingsRepo.saveSampleRate(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
                             bufferSize = settingsRepo.getBufferSize(),
                             periodSizeOption = settingsRepo.getPeriodSize(),
-                            engineTypeOption = settingsRepo.getEngineType()
+                            engineTypeOption = settingsRepo.getEngineType(),
+                            sampleRateOption = settingsRepo.getSampleRate()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -290,6 +301,7 @@ fun AppNavigation(
     onBufferSizeChange: (Float) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
+    onSampleRateChange: (Int) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -327,6 +339,7 @@ fun AppNavigation(
                     onBufferSizeChange = onBufferSizeChange,
                     onPeriodSizeChange = onPeriodSizeChange,
                     onEngineTypeChange = onEngineTypeChange,
+                    onSampleRateChange = onSampleRateChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -545,12 +558,14 @@ fun HomeScreen(
         }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     state: MainUiState,
     onBufferSizeChange: (Float) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
+    onSampleRateChange: (Int) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -571,29 +586,35 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Buffer Size", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
+                    
+                    val rate = state.sampleRateOption.toFloat()
+                    val minBuffer = rate * 0.01f // 10ms
+                    val maxBuffer = rate * 0.5f  // 500ms
+                    
+                    val ms = (state.bufferSize / (rate / 1000f)).toInt()
                     Text(
-                        text = "${state.bufferSize.toInt()} frames (~${(state.bufferSize / 48).toInt()}ms)",
+                        text = "${state.bufferSize.toInt()} frames (~${ms}ms)",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
                     Slider(
-                        value = state.bufferSize,
+                        value = state.bufferSize.coerceIn(minBuffer, maxBuffer),
                         onValueChange = onBufferSizeChange,
-                        valueRange = 480f..9600f,
-                        steps = 18
+                        valueRange = minBuffer..maxBuffer,
+                        steps = 48 // 10ms increments (10..500ms)
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Lower Latency",
+                            text = "Lower Latency (10ms)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary
                         )
                         Text(
-                            text = "Higher Stability",
+                            text = "Higher Stability (500ms)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -609,15 +630,38 @@ fun SettingsScreen(
                     Text("Sample Rate", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "48000 Hz",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "Controls capture frequency.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(12.dp))
+                    
+                    val rates = listOf(22050, 32000, 44100, 48000, 88200, 96000, 192000)
+                    
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing
+                    ) {
+                        rates.forEach { rate ->
+                            FilterChip(
+                                selected = state.sampleRateOption == rate,
+                                onClick = { onSampleRateChange(rate) },
+                                label = { Text("$rate Hz") }
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Fixed (Standard for USB Audio)",
+                        text = "Changing this requires restarting/resetting the USB Gadget.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Higher sample rates (e.g. 96kHz) increase CPU load significantly. You may need to increase the Buffer Size to prevent audio overruns.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
