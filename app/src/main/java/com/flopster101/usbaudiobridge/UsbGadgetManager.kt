@@ -19,36 +19,66 @@ object UsbGadgetManager {
 
     // Suspend function to run on IO thread
     suspend fun forceUnbind(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
-        // 1. Take ownership from Android System to stop 'init' from fighting us
-        // 'uac2_managed' is unknown to init.rc, so it should stop interfering.
-        runRootCommands(listOf("setprop sys.usb.config uac2_managed")) {}
-        
-        for (i in 1..5) {
-            runRootCommands(listOf("echo none > $GADGET_ROOT/UDC")) {}
-            try {
-                Thread.sleep(1000)
-                val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
-                val output = p.inputStream.bufferedReader().readText().trim()
-                if (output.isEmpty() || output == "none") {
-                    return@withContext true 
-                }
-                logCallback("[Gadget] Unbind retry $i: UDC still holds '$output'")
-            } catch (e: Exception) {
-               // Ignore
-            }
+        logCallback("[Gadget] Unbinding... (Phase 1: Request 'none')")
+        runRootCommands(listOf("setprop sys.usb.config none")) {}
+
+        // Phase 1: Polite wait (3 seconds)
+        for (i in 1..6) {
+             Thread.sleep(500)
+             if (checkUdcReleased()) {
+                 logCallback("[Gadget] Unbind Clean (System handled it).")
+                 return@withContext true
+             }
         }
-        logCallback("[Gadget] Warning: Failed to unbind UDC. Init might still be fighting.")
+
+        // Phase 2: Nuclear option (Force write UDC)
+        logCallback("[Gadget] Unbind Stuck. Phase 2: Forcing UDC clear...")
+        runRootCommands(listOf("echo \"none\" > $GADGET_ROOT/UDC")) {}
+
+        for (i in 1..4) { // Wait 2 more seconds
+             Thread.sleep(500)
+             if (checkUdcReleased()) {
+                 logCallback("[Gadget] Unbind Force-Cleared (Hardware is free).")
+                 return@withContext true
+             }
+        }
+
+        // Final check
+        val udc = getUdcContent()
+        logCallback("[Gadget] Critical: Failed to unbind. UDC still holds: '$udc'")
         return@withContext false
+    }
+
+    // Helper to check if UDC is effectively free
+    private fun checkUdcReleased(): Boolean {
+        try {
+            val udc = getUdcContent()
+            // If UDC is empty or literally "none", it's free.
+            // We ignore sys.usb.state here because if UDC is free, we can write to it.
+            return (udc.isEmpty() || udc == "none" || udc.isBlank())
+        } catch(e: Exception) { return false }
+    }
+    
+    private fun getUdcContent(): String {
+         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
+         return p.inputStream.bufferedReader().readText().trim()
     }
 
     suspend fun enableGadget(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         logCallback("[Gadget] Configuring UAC2 gadget...")
         
         if (!forceUnbind(logCallback)) {
-             logCallback("[Gadget] Continuing despite unbind failure (Risk of Device Busy)...")
+             logCallback("[Gadget] Aborting: Could not release USB hardware.")
+             return@withContext false
         }
         
-        val commands = listOf(
+        if (!forceUnbind(logCallback)) {
+             logCallback("[Gadget] Aborting: Could not release USB hardware.")
+             return@withContext false
+        }
+        
+        // Setup configfs structure first
+        val configCommands = listOf(
             // Use || true to suppress benign errors if files are already gone
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 || true",
@@ -63,19 +93,60 @@ object UsbGadgetManager {
             "mkdir -p $GADGET_ROOT/strings/0x409",
             "echo \"$MANUFACTURER\" > $GADGET_ROOT/strings/0x409/manufacturer",
             "echo \"$PRODUCT\" > $GADGET_ROOT/strings/0x409/product",
-            "ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1",
-            // Single source UDC
-            "ls /sys/class/udc | head -n 1 > $GADGET_ROOT/UDC"
+            "ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1"
         )
         
         applySeLinuxPolicy(logCallback)
         
-        val success = runRootCommands(commands, logCallback)
-        if (success) {
-            // Update state to match config
-            runRootCommands(listOf("setprop sys.usb.state uac2_managed")) {}
+        // Run configuration
+        if (!runRootCommands(configCommands, logCallback)) {
+            logCallback("[Gadget] Failed to configure gadget structure.")
+            return@withContext false
         }
-        return@withContext success
+        
+        // Attempt to bind with retries (Critical Step)
+        if (bindGadgetWithRetry(logCallback)) {
+            // Update state to match config
+            runRootCommands(listOf(
+                "setprop sys.usb.state uac2_managed",
+                "setprop sys.usb.config uac2_managed"
+            )) {}
+            return@withContext true
+        } else {
+            logCallback("[Gadget] Failed to bind UDC after retries.")
+            return@withContext false
+        }
+    }
+    
+    private fun bindGadgetWithRetry(logCallback: (String) -> Unit): Boolean {
+        for (i in 1..5) {
+             try {
+                 // 1. Identify UDC
+                 val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls /sys/class/udc | head -n 1"))
+                 val udcName = p.inputStream.bufferedReader().readText().trim()
+                 
+                 if (udcName.isEmpty()) {
+                     logCallback("[Gadget] Error: No UDC controller found.")
+                     return false
+                 }
+                 
+                 // 2. Ensure it's clean (Paranoia check)
+                 runRootCommands(listOf("echo \"none\" > $GADGET_ROOT/UDC || true")) {}
+                 
+                 // 3. Write it
+                 logCallback("[Gadget] Binding to $udcName (Attempt $i)...")
+                 if (runRootCommands(listOf("echo \"$udcName\" > $GADGET_ROOT/UDC"), logCallback)) {
+                     return true
+                 }
+                 
+                 logCallback("[Gadget] Bind attempt $i failed (EBUSY?). Retrying...")
+                 Thread.sleep(800) // Back off
+                 
+             } catch (e: Exception) {
+                 logCallback("[Gadget] Exception during bind: ${e.message}")
+             }
+        }
+        return false
     }
     
     // ... applySeLinuxPolicy ...
