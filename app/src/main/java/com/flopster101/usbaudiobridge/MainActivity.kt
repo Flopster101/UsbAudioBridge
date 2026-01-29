@@ -273,8 +273,8 @@ class MainActivity : ComponentActivity() {
         
         var currentText = uiState.logText + line
         // Circular Buffer Logic
-        if (currentText.length > 5000) {
-            val excess = currentText.length - 3000
+        if (currentText.length > 100000) {
+            val excess = currentText.length - 80000
             val cutIndex = currentText.indexOf('\n', excess)
             if (cutIndex != -1) {
                 currentText = currentText.substring(cutIndex + 1)
