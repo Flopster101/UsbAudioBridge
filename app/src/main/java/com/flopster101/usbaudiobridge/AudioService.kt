@@ -27,9 +27,19 @@ class AudioService : Service() {
         const val ACTION_STATS_UPDATE = "com.flopster101.usbaudiobridge.STATS_UPDATE"
         const val EXTRA_MSG = "msg"
         const val EXTRA_IS_RUNNING = "isRunning"
+        const val EXTRA_STATE_LABEL = "stateLabel"
+        const val EXTRA_STATE_COLOR = "stateColor"
         const val EXTRA_RATE = "rate"
         const val EXTRA_PERIOD = "period"
         const val EXTRA_BUFFER = "buffer"
+
+        // State Codes matching Native
+        const val STATE_STOPPED = 0
+        const val STATE_CONNECTING = 1
+        const val STATE_WAITING = 2
+        const val STATE_STREAMING = 3
+        const val STATE_IDLING = 4
+        const val STATE_ERROR = 5
         
         init {
             System.loadLibrary("usbaudio")
@@ -50,16 +60,19 @@ class AudioService : Service() {
     // Called from C++ JNI
     fun onNativeError(msg: String) {
         broadcastLog("[App] Fatal: $msg")
-        // Don't call stopAudioOnly() directly if it might deadlock with the native thread calling this.
-        // Instead, launch a cleanup job.
         serviceScope.launch {
-            if (isBridgeRunning) {
-                isBridgeRunning = false
-                Log.e(TAG, "Stopping bridge due to native error: $msg")
-                updateNotification("Monitoring Stopped (Error)")
-                stopAudioBridge() // Ensure native side flag is cleared
-                broadcastState() // Notify UI to reset button
-            }
+            Log.e(TAG, "Stopping bridge due to native error: $msg")
+            
+            // Clean up native side immediately
+            stopAudioBridge() 
+            
+            // Update State to ERROR so UI shows it persists
+            isBridgeRunning = false
+            lastNativeState = STATE_ERROR
+            lastErrorMsg = msg
+            
+            updateNotification("Monitoring Error")
+            updateUiState()
         }
     }
 
@@ -84,21 +97,31 @@ class AudioService : Service() {
             putExtra(EXTRA_BUFFER, buffer)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        // Ensure state reflects streaming (in case we missed a transition or to refresh)
+        if (lastNativeState != STATE_STREAMING) {
+            onNativeState(STATE_STREAMING)
+        }
     }
 
     // Called from C++ JNI
-    fun onNativeStreamState(isStreaming: Boolean) {
-        if (!isStreaming) {
-            // Re-broadcast "Active" state to reset UI to "Waiting for Host..."
-            // "Streaming" state is set via onNativeStats (ACTION_STATS_UPDATE)
-            broadcastState()
-        }
+    fun onNativeState(stateCode: Int) {
+        lastNativeState = stateCode
+        updateUiState()
     }
 
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
     var isBridgeRunning = false
         private set
+    
+    private var lastNativeState = STATE_STOPPED
+    private var lastErrorMsg = ""
+
+    private val usbReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updateUiState()
+        }
+    }
 
     inner class LocalBinder : Binder() {
         fun getService(): AudioService = this@AudioService
@@ -109,6 +132,12 @@ class AudioService : Service() {
         createNotificationChannel()
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "UsbAudioMonitor::BridgeLock")
+        
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        registerReceiver(usbReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -125,35 +154,60 @@ class AudioService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
+        unregisterReceiver(usbReceiver)
         createNotificationChannel()
-        // ... (existing wakeLock code if any, though verify placement)
-        // Wait, onCreate has the wakeLock init. onDestroy should release it if held?
-        // Let's just focus on scope cancel here.
+    }
+
+    private fun checkUsbConnected(): Boolean {
+        val intent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val plugged = intent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1
+        return plugged == android.os.BatteryManager.BATTERY_PLUGGED_USB || 
+               plugged == android.os.BatteryManager.BATTERY_PLUGGED_AC
+    }
+
+    private fun updateUiState() {
+        // Special Case: Error state should persist even if bridge is "stopped"
+        if (lastNativeState == STATE_ERROR) {
+            broadcastState("Error ($lastErrorMsg)", 0xFFF44336) // Red
+            return
+        }
+
+        if (!isBridgeRunning) {
+            broadcastState("Stopped", 0xFF888888)
+            return
+        }
+
+        val isUsb = checkUsbConnected()
+        
+        // Logic table
+        val (label, color) = when (lastNativeState) {
+            STATE_CONNECTING -> {
+                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                else "Active (Searching...)" to 0xFFFFC107 // Amber
+            }
+            STATE_WAITING -> {
+                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                else "Active (Waiting for Host...)" to 0xFFFFC107 // Amber
+            }
+            STATE_STREAMING -> "Streaming" to 0xFF4CAF50 // Green
+            STATE_IDLING -> "Active (Idling)" to 0xFF03A9F4 // Light Blue
+            else -> "Active" to 0xFF888888
+        }
+        broadcastState(label, color)
     }
 
     fun isGadgetActive(): Boolean {
-        // This is a quick check, can be sync or optimized. 
-        // Current implementation in Manager is "exec su", which is blocking. 
-        // ideally suspend, but for now let's leave as is or make suspend?
-        // Manager.isGadgetActive is NOT suspend yet in my previous edit (I checked).
-        // It uses Exec directly. I should probably make it suspend too if it lags interactions.
-        // But for UI "restoreUiState" it's running in a thread in MainActivity. 
-        // Let's leave it for now, it's fast enough or handled by caller.
         return UsbGadgetManager.isGadgetActive()
     }
 
     fun enableGadget() {
-        // Ensure policies are up to date even if gadget is already active
         serviceScope.launch {
-             // Policies might take a bit, do in background
-             // If Gadget is already active, we just re-apply policies to be sure and exit
              if (UsbGadgetManager.isGadgetActive()) {
                   UsbGadgetManager.applySeLinuxPolicy { msg -> broadcastLog(msg) }
                   broadcastLog("[App] Gadget already active.")
                   return@launch
              }
              
-             // If gadget is NOT active, UsbGadgetManager.enableGadget will apply policies for us
              broadcastLog("[App] Setting up USB gadget config...")
              val success = UsbGadgetManager.enableGadget { msg -> broadcastLog(msg) }
              if (success) {
@@ -165,12 +219,16 @@ class AudioService : Service() {
     }
 
     fun stopAudioOnly() {
-        if (!isBridgeRunning) return
+        // Allow stopping even if bridge not running, to clear Error state
+        if (!isBridgeRunning && lastNativeState != STATE_ERROR) return
+        
         broadcastLog("[App] Stopping audio capture...")
         stopAudioBridge()
         isBridgeRunning = false
+        lastNativeState = STATE_STOPPED
+        lastErrorMsg = ""
         updateNotification("Monitoring Paused (Gadget Active)")
-        broadcastState()
+        updateUiState()
         broadcastLog("[App] Audio stopped.")
     }
 
@@ -196,21 +254,24 @@ class AudioService : Service() {
             startAudioBridge(cardId, 0, bufferSize)
             
             isBridgeRunning = true
+            lastNativeState = STATE_CONNECTING
+            lastErrorMsg = ""
             updateNotification("Monitoring Active")
-            broadcastState()
+            updateUiState()
         }
     }
 
     fun stopBridge() {
-        if (isBridgeRunning) {
-            broadcastLog("[App] Stopping audio bridge...")
-            stopAudioBridge()
-            isBridgeRunning = false
-            updateNotification("Monitoring Stopped")
-            broadcastState()
-            broadcastLog("[App] Audio stopped.")
-        }
-        // Always try to disable the gadget
+        // Always allow stop to clear states
+        broadcastLog("[App] Stopping audio bridge...")
+        stopAudioBridge()
+        isBridgeRunning = false
+        lastNativeState = STATE_STOPPED
+        lastErrorMsg = ""
+        updateNotification("Monitoring Stopped")
+        updateUiState()
+        broadcastLog("[App] Audio stopped.")
+        
         serviceScope.launch {
              UsbGadgetManager.disableGadget { msg -> broadcastLog(msg) }
              stopSelf()
@@ -223,9 +284,11 @@ class AudioService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    private fun broadcastState() {
+    private fun broadcastState(label: String, color: Long) {
         val intent = Intent(ACTION_STATE_CHANGED)
         intent.putExtra(EXTRA_IS_RUNNING, isBridgeRunning)
+        intent.putExtra(EXTRA_STATE_LABEL, label)
+        intent.putExtra(EXTRA_STATE_COLOR, color)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 

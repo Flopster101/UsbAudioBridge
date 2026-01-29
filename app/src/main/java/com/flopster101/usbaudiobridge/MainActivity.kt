@@ -95,17 +95,17 @@ class MainActivity : ComponentActivity() {
     private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
-            if (isRunning) {
+            val label = intent?.getStringExtra(AudioService.EXTRA_STATE_LABEL) 
+            val color = intent?.getLongExtra(AudioService.EXTRA_STATE_COLOR, 0)
+            
+            uiState = uiState.copy(
+                isServiceRunning = isRunning,
+                serviceState = label ?: if (isRunning) "Active" else "Stopped",
+                serviceStateColor = if (color != null && color != 0L) color else if (isRunning) 0xFFFFC107 else 0xFF888888
+            )
+
+            if (!isRunning) {
                 uiState = uiState.copy(
-                    isServiceRunning = true,
-                    serviceState = "Active (Waiting for Host...)",
-                    serviceStateColor = 0xFFFFC107 // Amber
-                )
-            } else {
-                uiState = uiState.copy(
-                    isServiceRunning = false,
-                    serviceState = "Stopped",
-                    serviceStateColor = 0xFF888888, // Gray
                     sampleRate = "--",
                     periodSize = "--",
                     currentBuffer = "--"
@@ -121,9 +121,8 @@ class MainActivity : ComponentActivity() {
             val period = intent.getIntExtra(AudioService.EXTRA_PERIOD, 0)
             val buffer = intent.getIntExtra(AudioService.EXTRA_BUFFER, 0)
 
+            // State label is handled by stateReceiver now via Service broadcast
             uiState = uiState.copy(
-                serviceState = "Streaming",
-                serviceStateColor = 0xFF4CAF50, // Green
                 sampleRate = "$rate Hz",
                 periodSize = "$period frames",
                 currentBuffer = "$buffer frames"

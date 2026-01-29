@@ -151,8 +151,8 @@ void reportErrorToJava(const char *fmt, ...) {
   }
 }
 
-// Helper to report Stream State (Idle/Streaming)
-void reportStreamStateToJava(bool isStreaming) {
+// Helper to report State Code (0=Stopped, 1=Connecting, 2=Waiting, 3=Streaming, 4=Idling, 5=Error)
+void reportStateToJava(int stateCode) {
   if (!javaVM || !serviceObj) return;
 
   JNIEnv *env;
@@ -167,9 +167,9 @@ void reportStreamStateToJava(bool isStreaming) {
   }
 
   jclass cls = env->GetObjectClass(serviceObj);
-  jmethodID mid = env->GetMethodID(cls, "onNativeStreamState", "(Z)V");
+  jmethodID mid = env->GetMethodID(cls, "onNativeState", "(I)V");
   if (mid) {
-    env->CallVoidMethod(serviceObj, mid, (jboolean)isStreaming);
+    env->CallVoidMethod(serviceObj, mid, stateCode);
   }
   env->DeleteLocalRef(cls);
 
@@ -311,6 +311,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   bool opened = false;
 
   // Outer loop for retrying connection (waiting for host)
+  reportStateToJava(1); // 1 = CONNECTING (Searching/Retrying PCM)
   for (int retry = 0; retry < 20 && isRunning; retry++) {
     config.rate = rate;
     for (size_t p_size : periods) {
@@ -325,6 +326,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
           *out_period_size = (int)p_size;
         LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u)",
              rate);
+        reportStateToJava(2); // 2 = WAITING (PCM Open, No Data)
         break;
       }
 
@@ -396,7 +398,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
       // mainly.
       if (readErrorCount > 50) {
         LOGE("[Native] Too many errors. Assuming USB Disconnect.");
-        reportErrorToJava("USB Disconnected / Capture Failed");
+        reportErrorToJava("Capture Failed");
         isRunning = false;
         break;
       }
@@ -483,7 +485,8 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
       lastDataTime = now;
       if (!isStreaming) {
           isStreaming = true;
-          // Resume detected: Force immediate stats report to set UI to "Streaming"
+          // Resume detected
+          reportStateToJava(3); // 3 = STREAMING
           reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
           stats_counter = 0; 
       }
@@ -495,8 +498,8 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
       auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastDataTime).count();
       if (isStreaming && elapsed > 1000) {
            isStreaming = false;
-           reportStreamStateToJava(false); // Notify Java to show "Waiting..."
-           LOGD("[Native] Stream idle for 1s. State -> Waiting.");
+           reportStateToJava(4); // 4 = IDLING
+           LOGD("[Native] Stream idle for 1s. State -> Idling.");
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -512,6 +515,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   AAudioStream_close(stream);
   c_thread.join();
   LOGD("[Native] Bridge task finished.");
+  reportStateToJava(0); // 0 = STOPPED
   isFinished = true; // Signal we are mostly done (safe to restart)
 }
 
