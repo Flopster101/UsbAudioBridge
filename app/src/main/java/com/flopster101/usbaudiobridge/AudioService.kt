@@ -182,6 +182,7 @@ class AudioService : Service() {
     var isBridgeRunning = false
         private set
     
+    private lateinit var settingsRepo: SettingsRepository
     private var lastNativeState = STATE_STOPPED
     private var lastErrorMsg = ""
 
@@ -197,6 +198,7 @@ class AudioService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        settingsRepo = SettingsRepository(this)
         createNotificationChannel()
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "UsbAudioMonitor::BridgeLock")
@@ -277,7 +279,7 @@ class AudioService : Service() {
              }
              
              broadcastLog("[App] Setting up USB gadget config ($sampleRate Hz)...")
-             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate)
+             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo)
              if (success) {
                   broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
@@ -302,7 +304,7 @@ class AudioService : Service() {
 
     fun disableGadget() {
         serviceScope.launch {
-            UsbGadgetManager.disableGadget { msg -> broadcastLog(msg) }
+            UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
         }
     }
 
@@ -341,7 +343,7 @@ class AudioService : Service() {
         broadcastLog("[App] Audio stopped.")
         
         serviceScope.launch {
-             UsbGadgetManager.disableGadget { msg -> broadcastLog(msg) }
+             UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
              stopSelf()
         }
     }

@@ -98,8 +98,37 @@ object UsbGadgetManager {
         return "UAM-SR$rate"
     }
 
-    suspend fun enableGadget(logCallback: (String) -> Unit, sampleRate: Int = 48000): Boolean = withContext(Dispatchers.IO) {
+    suspend fun enableGadget(logCallback: (String) -> Unit, sampleRate: Int = 48000, settingsRepo: SettingsRepository? = null): Boolean = withContext(Dispatchers.IO) {
         logCallback("[Gadget] Configuring UAC2 gadget ($sampleRate Hz)...")
+        
+        // Backup original strings if not already done
+        if (settingsRepo != null) {
+            val (savedMan, savedProd) = settingsRepo.getOriginalIdentity()
+            if (savedMan == null || savedProd == null) {
+                try {
+                    val pProd = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/product"))
+                    val currProd = pProd.inputStream.bufferedReader().readText().trim()
+                    
+                    val pMan = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/manufacturer"))
+                    val currMan = pMan.inputStream.bufferedReader().readText().trim()
+                    
+                    if (currProd.isNotEmpty() && !currProd.contains("Audio Bridge") && !currMan.contains("FloppyKernel")) {
+                        settingsRepo.saveOriginalIdentity(currMan, currProd)
+                        logCallback("[Gadget] Backed up original identity: $currMan - $currProd")
+                    } else {
+                        // Fallback to system props
+                        val pModel = Runtime.getRuntime().exec("getprop ro.product.model")
+                        val fallbackProd = pModel.inputStream.bufferedReader().readText().trim()
+                        val pBrand = Runtime.getRuntime().exec("getprop ro.product.manufacturer")
+                        val fallbackMan = pBrand.inputStream.bufferedReader().readText().trim()
+                        settingsRepo.saveOriginalIdentity(fallbackMan, fallbackProd)
+                        logCallback("[Gadget] Backed up identity from props: $fallbackMan - $fallbackProd")
+                    }
+                } catch (e: Exception) {
+                    logCallback("[Gadget] Failed to backup strings: ${e.message}")
+                }
+            }
+        }
         
         if (!forceUnbind(logCallback)) {
              logCallback("[Gadget] Aborting: Could not release USB hardware.")
@@ -209,14 +238,36 @@ object UsbGadgetManager {
     
     // ... applySeLinuxPolicy ...
 
-    suspend fun disableGadget(logCallback: (String) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun disableGadget(logCallback: (String) -> Unit, settingsRepo: SettingsRepository? = null) = withContext(Dispatchers.IO) {
         logCallback("[Gadget] Disabling USB gadget...")
         forceUnbind(logCallback)
+        
+        // Restore strings if available
+        var restored = false
+        if (settingsRepo != null) {
+            val (origMan, origProd) = settingsRepo.getOriginalIdentity()
+            if (origMan != null && origProd != null) {
+                runRootCommands(listOf(
+                    "echo \"$origMan\" > $GADGET_ROOT/strings/0x409/manufacturer",
+                    "echo \"$origProd\" > $GADGET_ROOT/strings/0x409/product"
+                )) { } 
+                logCallback("[Gadget] Restored original identity.")
+                settingsRepo.clearOriginalIdentity()
+                restored = true
+            }
+        }
+        
+        if (!restored) {
+            // Fallback clear
+            runRootCommands(listOf(
+                "echo \"\" > $GADGET_ROOT/strings/0x409/manufacturer",
+                "echo \"\" > $GADGET_ROOT/strings/0x409/product"
+            )) {}
+        }
+
         runRootCommands(listOf(
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 || true",
-            "echo \"\" > $GADGET_ROOT/strings/0x409/manufacturer",
-            "echo \"\" > $GADGET_ROOT/strings/0x409/product",
             // Check if we effectively disabled it, then return control to Android
             // Restore standard ADB config
             "setprop sys.usb.config adb" 
