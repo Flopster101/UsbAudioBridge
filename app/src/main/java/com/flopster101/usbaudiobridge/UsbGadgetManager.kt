@@ -1,6 +1,8 @@
 package com.flopster101.usbaudiobridge
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
@@ -15,7 +17,8 @@ object UsbGadgetManager {
     private const val MANUFACTURER = "FloppyKernel Project"
     private const val PRODUCT = "Android USB Audio Monitor"
 
-    private fun forceUnbind(logCallback: (String) -> Unit): Boolean {
+    // Suspend function to run on IO thread
+    suspend fun forceUnbind(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         // 1. Take ownership from Android System to stop 'init' from fighting us
         // 'uac2_managed' is unknown to init.rc, so it should stop interfering.
         runRootCommands(listOf("setprop sys.usb.config uac2_managed")) {}
@@ -27,7 +30,7 @@ object UsbGadgetManager {
                 val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
                 val output = p.inputStream.bufferedReader().readText().trim()
                 if (output.isEmpty() || output == "none") {
-                    return true 
+                    return@withContext true 
                 }
                 logCallback("Unbind Retry $i: UDC still holds '$output'")
             } catch (e: Exception) {
@@ -35,10 +38,10 @@ object UsbGadgetManager {
             }
         }
         logCallback("Warning: Failed to unbind UDC. Init might still be fighting.")
-        return false
+        return@withContext false
     }
 
-    fun enableGadget(logCallback: (String) -> Unit): Boolean {
+    suspend fun enableGadget(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         logCallback("Configuring UAC2 Gadget...")
         
         if (!forceUnbind(logCallback)) {
@@ -72,13 +75,14 @@ object UsbGadgetManager {
             // Update state to match config
             runRootCommands(listOf("setprop sys.usb.state uac2_managed")) {}
         }
-        return success
+        return@withContext success
     }
     
     // ... applySeLinuxPolicy ...
 
-    fun disableGadget() {
-        forceUnbind {} 
+    suspend fun disableGadget(logCallback: (String) -> Unit) = withContext(Dispatchers.IO) {
+        logCallback("Disabling USB Gadget...")
+        forceUnbind(logCallback)
         runRootCommands(listOf(
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 || true",
@@ -87,10 +91,11 @@ object UsbGadgetManager {
             // Check if we effectively disabled it, then return control to Android
             // Restore standard ADB config
             "setprop sys.usb.config adb" 
-        )) { }
+        ), logCallback)
+        logCallback("Gadget Disabled. Restored USB.")
     }
 
-    fun applySeLinuxPolicy(logCallback: (String) -> Unit) {
+    suspend fun applySeLinuxPolicy(logCallback: (String) -> Unit) {
         val rules = listOf(
             // Allow bypassing MLS constraints (Level s0 vs s0:c2...)
             "typeattribute audio_device mlstrustedobject",
@@ -155,7 +160,7 @@ object UsbGadgetManager {
         }
     }
 
-    fun findAndPrepareCard(logCallback: (String) -> Unit): Int {
+    suspend fun findAndPrepareCard(logCallback: (String) -> Unit): Int = withContext(Dispatchers.IO) {
         logCallback("Scanning for UAC2 Audio Card...")
         
         var cardIndex = -1
@@ -180,7 +185,7 @@ object UsbGadgetManager {
                  runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0c", logCallback)
                  runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0p", {})
                  logCallback("UAC2 Driver found at Card $cardIndex")
-                 return cardIndex
+                 return@withContext cardIndex
             } else {
                 logCallback("Card $cardIndex found, but pcmC${cardIndex}D0c is missing.")
             }
@@ -188,10 +193,12 @@ object UsbGadgetManager {
              logCallback("UAC2 Card not found. Is USB Connected?")
         }
         
-        return -1
+        return@withContext -1
     }
 
     private fun runRootCommand(cmd: String, logCallback: (String) -> Unit): Boolean {
+        // Simple wrapper still blocks but usually fast. For strict correctness could be suspend too but inner runRootCommands handles it.
+        // We will make runRootCommands blocking but called from suspend context is fine since we are on IO dispatcher.
         return runRootCommands(listOf(cmd), logCallback)
     }
 
@@ -240,8 +247,21 @@ object UsbGadgetManager {
             
             val errReader = Thread {
                  try {
-                    val errLine = p.errorStream.bufferedReader().readText()
-                    if (errLine.isNotEmpty()) logCallback("Root Err: $errLine")
+                    val reader = p.errorStream.bufferedReader()
+                    var errLine = reader.readLine()
+                    while (errLine != null) {
+                        if (errLine.isNotEmpty()) {
+                            // Filter out "Directory not empty" or "No such file or directory" for rmdir/rm commands
+                            // checking if they are benign
+                            val isBenign = (errLine.contains("rmdir") && (errLine.contains("No such file") || errLine.contains("Directory not empty"))) ||
+                                           (errLine.contains("rm:") && errLine.contains("No such file"))
+                            
+                            if (!isBenign) {
+                                logCallback("Root Err: $errLine")
+                            }
+                        }
+                        errLine = reader.readLine()
+                    }
                  } catch (_: Exception) {}
             }
             errReader.start()
