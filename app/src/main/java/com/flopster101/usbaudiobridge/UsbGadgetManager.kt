@@ -14,6 +14,11 @@ object UsbGadgetManager {
     private const val CH_MASK = 3
     private const val SAMPLE_SIZE = 2
     
+    // Explicit Identity to force Windows Re-enumeration
+    private const val VENDOR_ID = "0x1d6b" // Linux Foundation
+    private const val PRODUCT_ID = "0x0104" // Multifunction Composite Gadget
+
+    
     private const val MANUFACTURER = "FloppyKernel Project"
     private const val PRODUCT = "Android USB Audio Monitor"
 
@@ -82,6 +87,13 @@ object UsbGadgetManager {
             // Use || true to suppress benign errors if files are already gone
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 || true",
+            
+            // Set Device Identity (Before creating functions)
+            "echo \"$VENDOR_ID\" > $GADGET_ROOT/idVendor",
+            "echo \"$PRODUCT_ID\" > $GADGET_ROOT/idProduct",
+            "echo \"0x0200\" > $GADGET_ROOT/bcdDevice",     // v2.0.0
+            "echo \"0x0200\" > $GADGET_ROOT/bcdUSB",        // USB 2.0
+            
             "mkdir -p $GADGET_ROOT/functions/uac2.0",
             "echo $SAMPLE_RATE > $GADGET_ROOT/functions/uac2.0/p_srate",
             "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/p_chmask",
@@ -90,9 +102,18 @@ object UsbGadgetManager {
             "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/c_chmask",
             "echo $SAMPLE_SIZE > $GADGET_ROOT/functions/uac2.0/c_ssize",
             
+            // Explicitly set request number (Standard: 2)
+            "echo 2 > $GADGET_ROOT/functions/uac2.0/req_number || true",
+            
             "mkdir -p $GADGET_ROOT/strings/0x409",
             "echo \"$MANUFACTURER\" > $GADGET_ROOT/strings/0x409/manufacturer",
             "echo \"$PRODUCT\" > $GADGET_ROOT/strings/0x409/product",
+            
+            // Set Configuration String (Important for Windows display in some views)
+            "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409",
+            "echo \"USB Audio\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration",
+            
+
             "ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1"
         )
         
