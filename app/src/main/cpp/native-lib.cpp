@@ -110,6 +110,44 @@ void setHighPriority() {
   reportTidToJava((int)tid);
 }
 
+// Helper to report Fatal Error to Java
+void reportErrorToJava(const char *fmt, ...) {
+  if (!javaVM || !serviceObj)
+    return;
+
+  char buffer[512];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+
+  JNIEnv *env;
+  bool attached = false;
+  int getEnvStat = javaVM->GetEnv((void **)&env, JNI_VERSION_1_6);
+
+  if (getEnvStat == JNI_EDETACHED) {
+    if (javaVM->AttachCurrentThread(&env, nullptr) != 0)
+      return;
+    attached = true;
+  } else if (getEnvStat != JNI_OK) {
+    return;
+  }
+
+  jclass cls = env->GetObjectClass(serviceObj);
+  jmethodID mid =
+      env->GetMethodID(cls, "onNativeError", "(Ljava/lang/String;)V");
+  if (mid) {
+    jstring jMsg = env->NewStringUTF(buffer);
+    env->CallVoidMethod(serviceObj, mid, jMsg);
+    env->DeleteLocalRef(jMsg);
+  }
+  env->DeleteLocalRef(cls);
+
+  if (attached) {
+    javaVM->DetachCurrentThread();
+  }
+}
+
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
   javaVM = vm;
   return JNI_VERSION_1_6;
@@ -250,13 +288,35 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
           LOGE("[Native] RING BUFFER OVERRUN! (dropped %u bytes)", chunk_bytes);
         }
       }
+      // Reset error count on success
+      readErrorCount = 0;
     } else {
-      // Handle XRUN (Overrun at Driver Level)
-      if (readErrorCount++ % 50 == 0) {
-        LOGE("[Native] PCM READ FAILING! (Count: %d, Error: %s)",
-             readErrorCount, pcm_get_error(pcm));
+      // Failed read
+      readErrorCount++;
+
+      const char *err_msg = pcm_get_error(pcm);
+
+      // Log occasionally to avoid spam
+      if (readErrorCount % 20 == 0) {
+        LOGE("[Native] PCM READ FAILING! (Consecutive: %d, Error: %s)",
+             readErrorCount, err_msg);
       }
-      // Attempt recovery
+
+      // FATAL ERROR CHECK
+      // If we fail > 50 times consecutively (approx 50 * 20ms = 1 sec), assume
+      // device is dead. Also check for explicit disconnect errors if possible
+      // (TinyALSA mostly generic, but -ENODEV/EIO common) We rely on count
+      // mainly.
+      if (readErrorCount > 50) {
+        LOGE("[Native] Too many errors. Assuming USB Disconnect.");
+        reportErrorToJava("USB Disconnected / Capture Failed");
+        isRunning = false;
+        break;
+      }
+
+      // Attempt recovery logic
+      // If broken pipe (XRUN), prepare might fix it. If physical disconnect,
+      // prepare will fail or read will fail again.
       pcm_prepare(pcm);
     }
   }

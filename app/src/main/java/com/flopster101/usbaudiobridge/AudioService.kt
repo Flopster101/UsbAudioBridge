@@ -23,7 +23,9 @@ class AudioService : Service() {
         const val CHANNEL_ID = "UsbAudioMonitorChannel"
         const val TAG = "AudioService"
         const val ACTION_LOG = "com.flopster101.usbaudiobridge.LOG"
+        const val ACTION_STATE_CHANGED = "com.flopster101.usbaudiobridge.STATE_CHANGED"
         const val EXTRA_MSG = "msg"
+        const val EXTRA_IS_RUNNING = "isRunning"
         
         init {
             System.loadLibrary("usbaudio")
@@ -39,6 +41,22 @@ class AudioService : Service() {
         val intent = Intent(ACTION_LOG)
         intent.putExtra(EXTRA_MSG, msg)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    // Called from C++ JNI
+    fun onNativeError(msg: String) {
+        broadcastLog("[App] Fatal: $msg")
+        // Don't call stopAudioOnly() directly if it might deadlock with the native thread calling this.
+        // Instead, launch a cleanup job.
+        serviceScope.launch {
+            if (isBridgeRunning) {
+                isBridgeRunning = false
+                Log.e(TAG, "Stopping bridge due to native error: $msg")
+                updateNotification("Monitoring Stopped (Error)")
+                stopAudioBridge() // Ensure native side flag is cleared
+                broadcastState() // Notify UI to reset button
+            }
+        }
     }
 
     // Called from C++ JNI
@@ -129,6 +147,7 @@ class AudioService : Service() {
         stopAudioBridge()
         isBridgeRunning = false
         updateNotification("Monitoring Paused (Gadget Active)")
+        broadcastState()
         broadcastLog("[App] Audio stopped.")
     }
 
@@ -153,8 +172,11 @@ class AudioService : Service() {
             broadcastLog("[App] Starting native capture on card $cardId...")
             startAudioBridge(cardId, 0, bufferSize)
             
+            startAudioBridge(cardId, 0, bufferSize)
+            
             isBridgeRunning = true
             updateNotification("Monitoring Active")
+            broadcastState()
         }
     }
 
@@ -164,6 +186,7 @@ class AudioService : Service() {
             stopAudioBridge()
             isBridgeRunning = false
             updateNotification("Monitoring Stopped")
+            broadcastState()
             broadcastLog("[App] Audio stopped.")
         }
         // Always try to disable the gadget
@@ -176,6 +199,12 @@ class AudioService : Service() {
     private fun broadcastLog(msg: String) {
         val intent = Intent(ACTION_LOG)
         intent.putExtra(EXTRA_MSG, msg)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    private fun broadcastState() {
+        val intent = Intent(ACTION_STATE_CHANGED)
+        intent.putExtra(EXTRA_IS_RUNNING, isBridgeRunning)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 

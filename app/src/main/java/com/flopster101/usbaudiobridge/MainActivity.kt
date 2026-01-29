@@ -36,6 +36,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val stateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
+            if (isRunning) {
+                btnStartAudio.text = "Stop Audio Capture"
+                // Clear log if starting fresh? Maybe not, user might want history.
+            } else {
+                btnStartAudio.text = "2. Start Audio Capture"
+            }
+        }
+    }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as AudioService.LocalBinder
@@ -73,6 +85,9 @@ class MainActivity : AppCompatActivity() {
         
         LocalBroadcastManager.getInstance(this).registerReceiver(
             logReceiver, IntentFilter(AudioService.ACTION_LOG)
+        )
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED)
         )
 
         setupListeners()
@@ -158,6 +173,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
         if (isBound) unbindService(connection)
     }
 }
