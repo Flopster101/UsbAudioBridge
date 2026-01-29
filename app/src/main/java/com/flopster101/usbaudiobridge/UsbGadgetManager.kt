@@ -196,7 +196,7 @@ object UsbGadgetManager {
         return@withContext -1
     }
 
-    private fun runRootCommand(cmd: String, logCallback: (String) -> Unit): Boolean {
+    fun runRootCommand(cmd: String, logCallback: (String) -> Unit): Boolean {
         // Simple wrapper still blocks but usually fast. For strict correctness could be suspend too but inner runRootCommands handles it.
         // We will make runRootCommands blocking but called from suspend context is fine since we are on IO dispatcher.
         return runRootCommands(listOf(cmd), logCallback)

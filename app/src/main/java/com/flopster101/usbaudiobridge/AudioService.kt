@@ -41,6 +41,19 @@ class AudioService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    // Called from C++ JNI
+    fun onNativeThreadStart(tid: Int) {
+        serviceScope.launch(Dispatchers.IO) {
+            // Apply SCHED_FIFO (Real-Time) priority
+            // -f : FIFO
+            // -p 50 : Priority 50 (Range 1-99)
+            val cmd = "chrt -f -p 50 $tid"
+            UsbGadgetManager.runRootCommand(cmd) { /* ignore output */ }
+            Log.d(TAG, "Promoted thread $tid to SCHED_FIFO")
+            broadcastLog("[App] Thread $tid promoted to Real-Time (FIFO)")
+        }
+    }
+
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
     var isBridgeRunning = false

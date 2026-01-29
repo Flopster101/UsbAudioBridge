@@ -1,12 +1,20 @@
 #include <aaudio/AAudio.h>
+#include <algorithm>
 #include <android/log.h>
 #include <atomic>
 #include <condition_variable>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <jni.h>
 #include <mutex>
 #include <string>
+#include <sys/resource.h>
+#include <sys/syscall.h>
 #include <thread>
 #include <tinyalsa/pcm.h>
+#include <unistd.h>
 #include <vector>
 
 #define TAG "UsbAudioNative"
@@ -60,6 +68,48 @@ void logToJava(const char *fmt, ...) {
   }
 }
 
+// Helper to report TID to Java for root escalation
+void reportTidToJava(int tid) {
+  if (!javaVM || !serviceObj)
+    return;
+
+  JNIEnv *env;
+  bool attached = false;
+  int getEnvStat = javaVM->GetEnv((void **)&env, JNI_VERSION_1_6);
+
+  if (getEnvStat == JNI_EDETACHED) {
+    if (javaVM->AttachCurrentThread(&env, nullptr) != 0)
+      return;
+    attached = true;
+  } else if (getEnvStat != JNI_OK) {
+    return;
+  }
+
+  jclass cls = env->GetObjectClass(serviceObj);
+  jmethodID mid = env->GetMethodID(cls, "onNativeThreadStart", "(I)V");
+  if (mid) {
+    env->CallVoidMethod(serviceObj, mid, tid);
+  }
+  env->DeleteLocalRef(cls);
+
+  if (attached) {
+    javaVM->DetachCurrentThread();
+  }
+}
+
+// Helper to set thread priority and request escalation
+void setHighPriority() {
+  pid_t tid = syscall(SYS_gettid);
+
+  // 1. Set Nice value
+  int priority = -19;
+  setpriority(PRIO_PROCESS, tid, priority);
+  LOGD("[Native] Thread %d nicely set to %d", tid, priority);
+
+  // 2. Request Root Escalation to SCHED_FIFO
+  reportTidToJava((int)tid);
+}
+
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
   javaVM = vm;
   return JNI_VERSION_1_6;
@@ -67,9 +117,11 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 // Global Execution State
 std::atomic<bool> isRunning{false};
+std::atomic<bool> isFinished{true}; // Synchronization flag
 std::thread bridgeThread;
 
-// --- Ring Buffer Implementation ---
+// --- Lock-Free Ring Buffer (SPSC) ---
+// Single Producer (Capture), Single Consumer (Bridge)
 class RingBuffer {
 public:
   RingBuffer(size_t size_bytes) : size_(size_bytes), head_(0), tail_(0) {
@@ -77,86 +129,88 @@ public:
   }
 
   size_t write(const uint8_t *data, size_t count) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (count > (size_ - (head_ - tail_)))
+    size_t current_tail = tail_.load(std::memory_order_acquire);
+    size_t available =
+        size_ - (head_.load(std::memory_order_relaxed) - current_tail);
+
+    if (count > available)
       return 0;
 
-    size_t write_idx = head_ % size_;
+    size_t write_idx = head_.load(std::memory_order_relaxed) % size_;
     size_t first_chunk = std::min(count, size_ - write_idx);
+
     memcpy(&buffer_[write_idx], data, first_chunk);
     if (first_chunk < count) {
       memcpy(&buffer_[0], data + first_chunk, count - first_chunk);
     }
-    head_ += count;
-    cv_.notify_one();
+
+    head_.fetch_add(count, std::memory_order_release);
     return count;
   }
 
-  size_t read(uint8_t *dest, size_t count, bool blocking) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (blocking)
-      cv_.wait(lock, [&] { return (head_ - tail_) >= count || !isRunning; });
-    if (!isRunning)
-      return 0;
+  size_t read(uint8_t *dest, size_t count) {
+    size_t current_head = head_.load(std::memory_order_acquire);
+    size_t available = current_head - tail_.load(std::memory_order_relaxed);
 
-    size_t available = head_ - tail_;
-    if (available == 0)
-      return 0;
-    size_t to_read = std::min(available, count);
+    if (available < count)
+      return 0; // Wait for full burst
 
-    size_t read_idx = tail_ % size_;
-    size_t first_chunk = std::min(to_read, size_ - read_idx);
+    size_t read_idx = tail_.load(std::memory_order_relaxed) % size_;
+    size_t first_chunk = std::min(count, size_ - read_idx);
+
     memcpy(dest, &buffer_[read_idx], first_chunk);
-    if (first_chunk < to_read) {
-      memcpy(dest + first_chunk, &buffer_[0], to_read - first_chunk);
+    if (first_chunk < count) {
+      memcpy(dest + first_chunk, &buffer_[0], count - first_chunk);
     }
-    tail_ += to_read;
-    return to_read;
+
+    tail_.fetch_add(count, std::memory_order_release);
+    return count;
   }
 
-  size_t available() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return head_ - tail_;
+  size_t available() const {
+    return head_.load(std::memory_order_acquire) -
+           tail_.load(std::memory_order_relaxed);
   }
 
 private:
   std::vector<uint8_t> buffer_;
-  size_t size_, head_, tail_;
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  size_t size_;
+  std::atomic<size_t> head_;
+  std::atomic<size_t> tail_;
 };
 
 // --- Capture Thread ---
 void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
+  setHighPriority();
   struct pcm_config config;
   memset(&config, 0, sizeof(config));
   config.channels = 2;
-  config.rate = 48000;
-  config.period_size = 1024;
   config.period_count = 4;
   config.format = PCM_FORMAT_S16_LE;
 
   struct pcm *pcm = nullptr;
 
-  // Configs to try: multiples of 48 (1ms) are preferred for USB Audio @ 48kHz
-  const size_t periods[] = {512, 480, 1024, 960, 240, 1920};
+  // Hardcoded 48kHz (Standard Android/USB Audio)
+  unsigned int rate = 48000;
+
+  // Configs: Try 1024 (20ms) then 480 (10ms).
+  // 1024 is safer for older CPUs.
+  const size_t periods[] = {1024, 480, 240};
 
   bool opened = false;
 
   // Outer loop for retrying connection (waiting for host)
-  // Inner loop for trying different parameters
-
   for (int retry = 0; retry < 20 && isRunning; retry++) {
+    config.rate = rate;
     for (size_t p_size : periods) {
       config.period_size = p_size;
       config.period_count = 4;
 
-      // LOGD("[Native] Trying period %u...", p_size);
       pcm = pcm_open(card, device, PCM_IN, &config);
 
       if (pcm && pcm_is_ready(pcm)) {
         opened = true;
-        LOGD("[Native] Success! Opened with period=%zu", p_size);
+        LOGD("[Native] Success! Opened: %u Hz, Period: %zu", rate, p_size);
         break;
       }
 
@@ -180,18 +234,30 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
   }
 
   if (!isRunning)
-    return; // Stopped while waiting
+    return;
 
   unsigned int chunk_bytes = pcm_frames_to_bytes(pcm, config.period_size);
   std::vector<uint8_t> local_buf(chunk_bytes);
   LOGD("[Native] Capture started.");
 
+  int readErrorCount = 0;
+  int overrunCount = 0;
   while (isRunning) {
-    if (pcm_read(pcm, local_buf.data(), chunk_bytes) == 0) {
-      rb->write(local_buf.data(), chunk_bytes);
+    int res = pcm_read(pcm, local_buf.data(), chunk_bytes);
+    if (res == 0) {
+      if (rb->write(local_buf.data(), chunk_bytes) == 0) {
+        if (overrunCount++ % 50 == 0) {
+          LOGE("[Native] RING BUFFER OVERRUN! (dropped %u bytes)", chunk_bytes);
+        }
+      }
     } else {
-      // LOGE("[Native] PCM read error"); // Prevent spamming UI
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      // Handle XRUN (Overrun at Driver Level)
+      if (readErrorCount++ % 50 == 0) {
+        LOGE("[Native] PCM READ FAILING! (Count: %d, Error: %s)",
+             readErrorCount, pcm_get_error(pcm));
+      }
+      // Attempt recovery
+      pcm_prepare(pcm);
     }
   }
   pcm_close(pcm);
@@ -199,20 +265,30 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 }
 
 // --- Bridge Logic ---
-void bridgeTask(int card, int device, int bufferSizeFrames) {
-  LOGD("[Native] Starting bridge task. Buffer: %d frames", bufferSizeFrames);
+void bridgeTask(int card, int device, int /* bufferSizeFrames */) {
+  setHighPriority();
+
+  // Moderate Buffer: 4096 frames (~85ms @ 48k)
+  size_t deep_buffer_frames = 4096;
+  LOGD("[Native] Starting bridge task. Buffer: %zu frames", deep_buffer_frames);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
-  size_t rb_size = bufferSizeFrames * bytes_per_frame;
+  size_t rb_size = deep_buffer_frames * bytes_per_frame;
   RingBuffer rb(rb_size);
 
   std::thread c_thread(captureLoop, card, device, &rb);
+
+  // Hardcoded 48kHz
+  int32_t rate = 48000;
+  LOGD("[Native] Bridge using fixed rate: %d Hz", rate);
 
   AAudioStreamBuilder *builder;
   AAudio_createStreamBuilder(&builder);
   AAudioStreamBuilder_setPerformanceMode(builder,
                                          AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-  AAudioStreamBuilder_setSampleRate(builder, 48000);
+  AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
+
+  AAudioStreamBuilder_setSampleRate(builder, rate);
   AAudioStreamBuilder_setChannelCount(builder, 2);
   AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
 
@@ -227,10 +303,16 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
 
   AAudioStream_requestStart(stream);
 
-  // Pre-buffer 50%
-  LOGD("[Native] Pre-buffering...");
-  while (isRunning && rb.available() < (rb_size / 2)) {
+  // Pre-roll: Wait briefly for data to populate (prevents immediate underrun)
+  // 50ms @ 48kHz = 2400 frames
+  int preroll_ms = 50;
+  LOGD("[Native] Pre-rolling %dms...", preroll_ms);
+  int wait_count = 0;
+  while (isRunning &&
+         rb.available() < (rate * preroll_ms / 1000) * bytes_per_frame) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    if (wait_count++ > 200)
+      break; // 1s Safety timeout
   }
   LOGD("[Native] Playback started!");
 
@@ -238,11 +320,17 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   size_t burstBytes = burstFrames * bytes_per_frame;
   std::vector<uint8_t> p_buf(burstBytes);
 
+  // Consume Loop
   while (isRunning) {
-    size_t read_bytes = rb.read(p_buf.data(), burstBytes, true);
+    size_t read_bytes = rb.read(p_buf.data(), burstBytes);
+
     if (read_bytes > 0) {
       AAudioStream_write(stream, p_buf.data(), read_bytes / bytes_per_frame,
-                         100000000);
+                         100000000); // 100ms timeout
+    } else {
+      // Buffer empty. Just wait a bit to avoid busy spinning.
+      // No complex hysteresis or logging.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
 
@@ -250,14 +338,18 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   AAudioStream_close(stream);
   c_thread.join();
   LOGD("[Native] Bridge task finished.");
-
-  // Clean up Global Ref when done?
-  // Ideally yes, but since we are detaching, we'll leave it for stopBridge
+  isFinished = true; // Signal we are mostly done (safe to restart)
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
     JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames) {
+
+  // Wait for previous instance to clean up
+  int safety = 0;
+  while (!isFinished && safety++ < 50) { // Max 500ms
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
 
   if (isRunning)
     return false; // Return false if already running
@@ -268,6 +360,7 @@ Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
   serviceObj = env->NewGlobalRef(thiz);
 
   isRunning = true;
+  isFinished = false;
   bridgeThread = std::thread(bridgeTask, card, device, bufferSizeFrames);
   bridgeThread.detach();
   return true;
