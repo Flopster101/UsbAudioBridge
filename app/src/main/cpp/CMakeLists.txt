@@ -28,4 +28,5 @@ find_library(aaudio-lib aaudio)
 target_link_libraries(usbaudio
     tinyalsa
     ${log-lib}
-    ${aaudio-lib})
+    ${aaudio-lib}
+    OpenSLES)

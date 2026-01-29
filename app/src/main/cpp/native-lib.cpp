@@ -19,6 +19,8 @@
 #include <tinyalsa/pcm.h>
 #include <unistd.h>
 #include <vector>
+#include <SLES/OpenSLES.h>
+#include <SLES/OpenSLES_Android.h>
 
 #define TAG "UsbAudioNative"
 // Redirect logs to both Logcat and Java Callback
@@ -427,13 +429,174 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   LOGD("[Native] Host closed device (Capture stopped).");
 }
 
+// --- Audio Output Engine Interface ---
+class AudioEngine {
+public:
+    virtual ~AudioEngine() = default;
+    virtual bool open(int rate, int channelCount) = 0;
+    virtual void start() = 0;
+    virtual void write(const uint8_t* data, size_t sizeBytes) = 0;
+    virtual void stop() = 0;
+    virtual void close() = 0;
+    virtual int getBurstFrames() = 0;
+};
+
+// --- AAudio Engine ---
+class AAudioEngine : public AudioEngine {
+    AAudioStream* stream = nullptr;
+    int32_t burstFrames = 0;
+public:
+    bool open(int rate, int channelCount) override {
+        AAudioStreamBuilder *builder;
+        AAudio_createStreamBuilder(&builder);
+        AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+        AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
+        AAudioStreamBuilder_setSampleRate(builder, rate);
+        AAudioStreamBuilder_setChannelCount(builder, channelCount);
+        AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
+
+        if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {
+            LOGE("[Native] AAudio open failed");
+            AAudioStreamBuilder_delete(builder);
+            return false;
+        }
+        AAudioStreamBuilder_delete(builder);
+        burstFrames = AAudioStream_getFramesPerBurst(stream);
+        return true;
+    }
+
+    void start() override {
+        if (stream) AAudioStream_requestStart(stream);
+    }
+
+    void write(const uint8_t* data, size_t sizeBytes) override {
+        if (stream) {
+            // timeout 100ms
+            AAudioStream_write(stream, data, sizeBytes / 2, 100000000); // divide by 2 for int16 frames
+        }
+    }
+
+    void stop() override {
+        if (stream) AAudioStream_requestStop(stream);
+    }
+
+    void close() override {
+        if (stream) {
+            AAudioStream_close(stream);
+            stream = nullptr;
+        }
+    }
+    
+    int getBurstFrames() override { return burstFrames; }
+};
+
+// --- OpenSL ES Engine ---
+class OpenSLEngine : public AudioEngine {
+    SLObjectItf engineObject = nullptr;
+    SLEngineItf engineEngine = nullptr;
+    SLObjectItf outputMixObject = nullptr;
+    SLObjectItf playerObject = nullptr;
+    SLPlayItf playerPlay = nullptr;
+    SLAndroidSimpleBufferQueueItf playerBufferQueue = nullptr;
+    
+    std::mutex queueMutex;
+    std::condition_variable queueCv;
+    bool bufferReady = true; // Simple flow control
+
+    static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
+        OpenSLEngine* engine = static_cast<OpenSLEngine*>(context);
+        std::lock_guard<std::mutex> lock(engine->queueMutex);
+        engine->bufferReady = true;
+        engine->queueCv.notify_one();
+    }
+
+public:
+    bool open(int rate, int channelCount) override {
+        SLresult result;
+        // 1. Create Engine
+        result = slCreateEngine(&engineObject, 0, NULL, 0, NULL, nullptr);
+        if(result != SL_RESULT_SUCCESS) return false;
+        result = (*engineObject)->Realize(engineObject, SL_BOOLEAN_FALSE);
+        if(result != SL_RESULT_SUCCESS) return false;
+        result = (*engineObject)->GetInterface(engineObject, SL_IID_ENGINE, &engineEngine);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        // 2. Create Output Mix
+        result = (*engineEngine)->CreateOutputMix(engineEngine, &outputMixObject, 0, 0, 0);
+        if(result != SL_RESULT_SUCCESS) return false;
+        result = (*outputMixObject)->Realize(outputMixObject, SL_BOOLEAN_FALSE);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        // 3. Configure Audio Source
+        SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2};
+        SLDataFormat_PCM format_pcm = {SL_DATAFORMAT_PCM, (SLuint32)channelCount, (SLuint32)(rate * 1000),
+                                       SL_PCMSAMPLEFORMAT_FIXED_16, SL_PCMSAMPLEFORMAT_FIXED_16,
+                                       SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT, SL_BYTEORDER_LITTLEENDIAN};
+        SLDataSource audioSrc = {&loc_bufq, &format_pcm};
+
+        // 4. Configure Audio Sink
+        SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, outputMixObject};
+        SLDataSink audioSnk = {&loc_outmix, NULL};
+
+        // 5. Create Audio Player
+        const SLInterfaceID ids[1] = {SL_IID_ANDROIDSIMPLEBUFFERQUEUE};
+        const SLboolean req[1] = {SL_BOOLEAN_TRUE};
+        result = (*engineEngine)->CreateAudioPlayer(engineEngine, &playerObject, &audioSrc, &audioSnk, 1, ids, req);
+        if(result != SL_RESULT_SUCCESS) { LOGE("OpenSL CreateAudioPlayer failed"); return false; }
+
+        result = (*playerObject)->Realize(playerObject, SL_BOOLEAN_FALSE);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        result = (*playerObject)->GetInterface(playerObject, SL_IID_PLAY, &playerPlay);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        result = (*playerObject)->GetInterface(playerObject, SL_IID_ANDROIDSIMPLEBUFFERQUEUE, &playerBufferQueue);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        result = (*playerBufferQueue)->RegisterCallback(playerBufferQueue, bqPlayerCallback, this);
+        if(result != SL_RESULT_SUCCESS) return false;
+
+        return true;
+    }
+
+    void start() override {
+        if(playerPlay) (*playerPlay)->SetPlayState(playerPlay, SL_PLAYSTATE_PLAYING);
+    }
+
+    void write(const uint8_t* data, size_t sizeBytes) override {
+        if (!playerBufferQueue) return;
+        
+        // Wait for buffer slot
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            queueCv.wait_for(lock, std::chrono::milliseconds(100), [this]{ return bufferReady; });
+            bufferReady = false; 
+        }
+        
+        (*playerBufferQueue)->Enqueue(playerBufferQueue, data, sizeBytes);
+    }
+
+    void stop() override {
+        if(playerPlay) (*playerPlay)->SetPlayState(playerPlay, SL_PLAYSTATE_STOPPED);
+    }
+
+    void close() override {
+        if (playerObject) { (*playerObject)->Destroy(playerObject); playerObject = nullptr; }
+        if (outputMixObject) { (*outputMixObject)->Destroy(outputMixObject); outputMixObject = nullptr; }
+        if (engineObject) { (*engineObject)->Destroy(engineObject); engineObject = nullptr; }
+    }
+    
+    int getBurstFrames() override { return 192; } // Default approximate burst
+};
+
+
 // --- Bridge Logic ---
-void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames) {
+void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames, int engineType) {
   setHighPriority();
 
   // Use user-provided buffer size (Minimum 480 to avoid issues)
   size_t deep_buffer_frames = (size_t)std::max(480, bufferSizeFrames);
-  LOGD("[Native] Starting bridge task. Buffer: %zu frames, PeriodReq: %d", deep_buffer_frames, periodSizeFrames);
+  LOGD("[Native] Starting bridge task. Buffer: %zu frames, PeriodReq: %d, Engine: %d", deep_buffer_frames, periodSizeFrames, engineType);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
   size_t rb_size = deep_buffer_frames * bytes_per_frame;
@@ -446,26 +609,25 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
   int32_t rate = 48000;
   LOGD("[Native] Bridge using fixed rate: %d Hz", rate);
 
-  AAudioStreamBuilder *builder;
-  AAudio_createStreamBuilder(&builder);
-  AAudioStreamBuilder_setPerformanceMode(builder,
-                                         AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-  AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
-
-  AAudioStreamBuilder_setSampleRate(builder, rate);
-  AAudioStreamBuilder_setChannelCount(builder, 2);
-  AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
-
-  AAudioStream *stream;
-  if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {
-    LOGE("[Native] Error: Failed to open AAudio.");
-    isRunning = false;
-    c_thread.join();
-    return;
+  // Select Engine
+  AudioEngine* engine = nullptr;
+  if (engineType == 1) {
+      engine = new OpenSLEngine();
+      LOGD("[Native] Using OpenSL ES Engine");
+  } else {
+      engine = new AAudioEngine();
+      LOGD("[Native] Using AAudio Engine");
   }
-  AAudioStreamBuilder_delete(builder);
 
-  AAudioStream_requestStart(stream);
+  if (!engine->open(rate, 2)) {
+      LOGE("[Native] Error: Failed to open Audio Engine.");
+      isRunning = false;
+      delete engine;
+      c_thread.join();
+      return;
+  }
+
+  engine->start();
 
   // Pre-roll: Wait briefly for data to populate (prevents immediate underrun)
   // 50ms @ 48kHz = 2400 frames
@@ -479,7 +641,8 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
   LOGD("[Native] Host opened device (Streaming started).");
   reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
 
-  int32_t burstFrames = AAudioStream_getFramesPerBurst(stream);
+  int32_t burstFrames = engine->getBurstFrames();
+  if (burstFrames <= 0) burstFrames = 192; // Fallback
   size_t burstBytes = burstFrames * bytes_per_frame;
   std::vector<uint8_t> p_buf(burstBytes);
 
@@ -502,15 +665,14 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
           stats_counter = 0; 
       }
       
-      AAudioStream_write(stream, p_buf.data(), read_bytes / bytes_per_frame,
-                         100000000); // 100ms timeout
+      engine->write(p_buf.data(), read_bytes);
     } else {
       // Buffer empty. Check for timeout (Idle detection)
       auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastDataTime).count();
       if (isStreaming && elapsed > 1000) {
            isStreaming = false;
            reportStateToJava(4); // 4 = IDLING
-           LOGD("[Native] Stream idle for 1s. State -> Idling.");
+           LOGD("[Native] Stream idle for 1s. State -> Waiting.");
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -522,8 +684,10 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
     }
   }
 
-  AAudioStream_requestStop(stream);
-  AAudioStream_close(stream);
+  engine->stop();
+  engine->close();
+  delete engine;
+  
   c_thread.join();
   LOGD("[Native] Bridge task finished.");
   reportStateToJava(0); // 0 = STOPPED
@@ -532,7 +696,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
-    JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames, jint periodSizeFrames) {
+    JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames, jint periodSizeFrames, jint engineType) {
 
   // Wait for previous instance to clean up
   int safety = 0;
@@ -552,7 +716,7 @@ Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
 
   isRunning = true;
   isFinished = false;
-  bridgeThread = std::thread(bridgeTask, card, device, bufferSizeFrames, periodSizeFrames);
+  bridgeThread = std::thread(bridgeTask, card, device, bufferSizeFrames, periodSizeFrames, engineType);
   bridgeThread.detach();
   return true;
 }

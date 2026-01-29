@@ -41,12 +41,15 @@ class AudioService : Service() {
         const val STATE_IDLING = 4
         const val STATE_ERROR = 5
         
+        const val ENGINE_AAUDIO = 0
+        const val ENGINE_OPENSL = 1
+        
         init {
             System.loadLibrary("usbaudio")
         }
     }
 
-    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int)
+    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int)
     external fun stopAudioBridge()
 
     // Called from C++ JNI
@@ -238,7 +241,7 @@ class AudioService : Service() {
         }
     }
 
-    fun startBridge(bufferSize: Int, periodSize: Int = 0) {
+    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0) {
         if (isBridgeRunning) return
         
         serviceScope.launch {
@@ -251,7 +254,7 @@ class AudioService : Service() {
             }
 
             broadcastLog("[App] Starting native capture on card $cardId...")
-            startAudioBridge(cardId, 0, bufferSize, periodSize)
+            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType)
             
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING

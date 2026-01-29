@@ -67,6 +67,7 @@ data class MainUiState(
     // Config
     val bufferSize: Float = 4800f,
     val periodSizeOption: Int = 0, // 0 = Auto
+    val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL
     val sampleRateOption: Int = 48000,
 
     // Status
@@ -89,6 +90,9 @@ class SettingsRepository(context: Context) {
 
     fun savePeriodSize(size: Int) = prefs.edit().putInt("period_size", size).apply()
     fun getPeriodSize(): Int = prefs.getInt("period_size", 0)
+
+    fun saveEngineType(type: Int) = prefs.edit().putInt("engine_type", type).apply()
+    fun getEngineType(): Int = prefs.getInt("engine_type", 0)
 
     fun resetDefaults() {
         prefs.edit().clear().apply()
@@ -172,7 +176,8 @@ class MainActivity : ComponentActivity() {
         // Load settings
         uiState = uiState.copy(
             bufferSize = settingsRepo.getBufferSize(),
-            periodSizeOption = settingsRepo.getPeriodSize()
+            periodSizeOption = settingsRepo.getPeriodSize(),
+            engineTypeOption = settingsRepo.getEngineType()
         )
         
         // Start Service
@@ -206,7 +211,7 @@ class MainActivity : ComponentActivity() {
                         if (uiState.isServiceRunning) {
                              audioService?.stopAudioOnly()
                         } else {
-                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption)
+                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption, uiState.engineTypeOption)
                         }
                     },
                     onBufferSizeChange = { 
@@ -217,11 +222,16 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(periodSizeOption = it)
                         settingsRepo.savePeriodSize(it)
                     },
+                    onEngineTypeChange = {
+                        uiState = uiState.copy(engineTypeOption = it)
+                        settingsRepo.saveEngineType(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
                             bufferSize = settingsRepo.getBufferSize(),
-                            periodSizeOption = settingsRepo.getPeriodSize()
+                            periodSizeOption = settingsRepo.getPeriodSize(),
+                            engineTypeOption = settingsRepo.getEngineType()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -279,6 +289,7 @@ fun AppNavigation(
     onToggleCapture: () -> Unit,
     onBufferSizeChange: (Float) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
+    onEngineTypeChange: (Int) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -315,6 +326,7 @@ fun AppNavigation(
                     state = state,
                     onBufferSizeChange = onBufferSizeChange,
                     onPeriodSizeChange = onPeriodSizeChange,
+                    onEngineTypeChange = onEngineTypeChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -538,6 +550,7 @@ fun SettingsScreen(
     state: MainUiState,
     onBufferSizeChange: (Float) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
+    onEngineTypeChange: (Int) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -606,6 +619,35 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
+                }
+            }
+        }
+
+        // Output Engine
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Audio Output Engine", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Select the backend driver for playback.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = state.engineTypeOption == 0,
+                            onClick = { onEngineTypeChange(0) },
+                            label = { Text("AAudio") }
+                        )
+                        FilterChip(
+                            selected = state.engineTypeOption == 1,
+                            onClick = { onEngineTypeChange(1) },
+                            label = { Text("OpenSL ES") }
+                        )
+                    }
                 }
             }
         }
