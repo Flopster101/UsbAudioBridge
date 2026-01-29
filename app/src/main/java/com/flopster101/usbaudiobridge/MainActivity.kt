@@ -20,8 +20,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -47,6 +53,9 @@ import androidx.navigation.compose.rememberNavController
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.widget.Toast
 
 // UI State Definition
 data class MainUiState(
@@ -423,6 +432,28 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
+                    
+                    // Copy Button
+                    val context = LocalContext.current
+                    IconButton(
+                        onClick = { 
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("UsbAudioLogs", state.logText)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.size(32.dp) // Slightly smaller than default
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy All Logs",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
                     val rotation by animateFloatAsState(
                         targetValue = if (state.isLogsExpanded) 180f else 0f, 
                         label = "arrowRotation"
@@ -452,14 +483,33 @@ fun HomeScreen(
                             logScroll.animateScrollTo(logScroll.maxValue)
                         }
                         
+                        val nestedScrollInterop = remember {
+                            object : NestedScrollConnection {
+                                override fun onPostScroll(
+                                    consumed: Offset,
+                                    available: Offset,
+                                    source: NestedScrollSource
+                                ): Offset {
+                                    return available // Consume remaining scroll to prevent parent (LazyColumn) from getting it
+                                }
+                                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                                    return available
+                                }
+                            }
+                        }
+
                         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                             Text(
-                                 text = state.logText,
-                                 fontFamily = FontFamily.Monospace,
-                                 fontSize = 12.sp,
-                                 color = MaterialTheme.colorScheme.onSurface,
-                                 modifier = Modifier.verticalScroll(logScroll)
-                             )
+                             SelectionContainer {
+                                 Text(
+                                     text = state.logText,
+                                     fontFamily = FontFamily.Monospace,
+                                     fontSize = 12.sp,
+                                     color = MaterialTheme.colorScheme.onSurface,
+                                     modifier = Modifier
+                                         .nestedScroll(nestedScrollInterop)
+                                         .verticalScroll(logScroll)
+                                 )
+                             }
                         }
                     }
                 }
