@@ -32,20 +32,20 @@ object UsbGadgetManager {
                 if (output.isEmpty() || output == "none") {
                     return@withContext true 
                 }
-                logCallback("Unbind Retry $i: UDC still holds '$output'")
+                logCallback("[Gadget] Unbind retry $i: UDC still holds '$output'")
             } catch (e: Exception) {
                // Ignore
             }
         }
-        logCallback("Warning: Failed to unbind UDC. Init might still be fighting.")
+        logCallback("[Gadget] Warning: Failed to unbind UDC. Init might still be fighting.")
         return@withContext false
     }
 
     suspend fun enableGadget(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
-        logCallback("Configuring UAC2 Gadget...")
+        logCallback("[Gadget] Configuring UAC2 gadget...")
         
         if (!forceUnbind(logCallback)) {
-             logCallback("Continuing despite unbind failure (Risk of Device Busy)...")
+             logCallback("[Gadget] Continuing despite unbind failure (Risk of Device Busy)...")
         }
         
         val commands = listOf(
@@ -81,7 +81,7 @@ object UsbGadgetManager {
     // ... applySeLinuxPolicy ...
 
     suspend fun disableGadget(logCallback: (String) -> Unit) = withContext(Dispatchers.IO) {
-        logCallback("Disabling USB Gadget...")
+        logCallback("[Gadget] Disabling USB gadget...")
         forceUnbind(logCallback)
         runRootCommands(listOf(
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
@@ -92,7 +92,7 @@ object UsbGadgetManager {
             // Restore standard ADB config
             "setprop sys.usb.config adb" 
         ), logCallback)
-        logCallback("Gadget Disabled. Restored USB.")
+        logCallback("[Gadget] Gadget disabled. Restored USB.")
     }
 
     suspend fun applySeLinuxPolicy(logCallback: (String) -> Unit) {
@@ -120,13 +120,13 @@ object UsbGadgetManager {
                  if (runRootCommand(writeCmd, {})) {
                      val applyCmd = "$ksuBin sepolicy apply $tmpPath"
                      if (runRootCommand(applyCmd, logCallback)) {
-                         logCallback("SELinux Rules Applied via KernelSU File")
+                         logCallback("[Gadget] SELinux rules applied via ksud")
                          runRootCommand("rm $tmpPath", {}) // Cleanup
                          return
                      }
                  }
              } catch (e: Exception) {
-                 logCallback("KSU File Apply Failed: ${e.message}")
+                 logCallback("[Gadget] KSU file apply failed: ${e.message}")
              }
         }
 
@@ -145,7 +145,7 @@ object UsbGadgetManager {
         }
         
         if (workingTool != null) {
-            logCallback("Applying Policy via ${workingTool}...")
+            logCallback("[Gadget] Applying policy via ${workingTool}...")
             // These tools often handle braced syntax fine, but we can unroll if needed.
             // Using the original braced rules here for conciseness as confirmed working manually on Magisk previously.
             for (rule in rules) {
@@ -153,15 +153,15 @@ object UsbGadgetManager {
                      if (msg.contains("denied") || msg.contains("Error")) logCallback(msg)
                  })
             }
-            logCallback("SELinux Rules Applied.")
+            logCallback("[Gadget] SELinux rules applied.")
         } else {
              // If we are here and KSU failed, we are in trouble.
-             logCallback("Warning: No Policy Tool Succeeded (KSU/Magisk).")
+             logCallback("[Gadget] Warning: No policy tool succeeded (KSU/Magisk).")
         }
     }
 
     suspend fun findAndPrepareCard(logCallback: (String) -> Unit): Int = withContext(Dispatchers.IO) {
-        logCallback("Scanning for UAC2 Audio Card...")
+        logCallback("[Gadget] Scanning for UAC2 audio card...")
         
         var cardIndex = -1
         
@@ -175,7 +175,7 @@ object UsbGadgetManager {
                 cardIndex = output.filter { it.isDigit() }.toIntOrNull() ?: -1
             }
         } catch (e: Exception) {
-            logCallback("Error scanning cards: ${e.message}")
+            logCallback("[Gadget] Error scanning cards: ${e.message}")
         }
             
         if (cardIndex != -1) {
@@ -184,13 +184,13 @@ object UsbGadgetManager {
                  // Apply permissions
                  runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0c", logCallback)
                  runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0p", {})
-                 logCallback("UAC2 Driver found at Card $cardIndex")
+                 logCallback("[Gadget] UAC2 driver found at card $cardIndex")
                  return@withContext cardIndex
             } else {
-                logCallback("Card $cardIndex found, but pcmC${cardIndex}D0c is missing.")
+                logCallback("[Gadget] Card $cardIndex found, but pcmC${cardIndex}D0c is missing.")
             }
         } else {
-             logCallback("UAC2 Card not found. Is USB Connected?")
+             logCallback("[Gadget] UAC2 card not found. Is USB connected?")
         }
         
         return@withContext -1

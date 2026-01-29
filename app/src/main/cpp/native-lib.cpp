@@ -151,12 +151,12 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
       config.period_size = p_size;
       config.period_count = 4;
 
-      // LOGD("Native: Trying period %u...", p_size);
+      // LOGD("[Native] Trying period %u...", p_size);
       pcm = pcm_open(card, device, PCM_IN, &config);
 
       if (pcm && pcm_is_ready(pcm)) {
         opened = true;
-        LOGD("Native: Success! Opened with period=%u", p_size);
+        LOGD("[Native] Success! Opened with period=%zu", p_size);
         break;
       }
 
@@ -167,12 +167,12 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
     if (opened)
       break;
 
-    LOGE("Native: All configs failed. Retrying in 1s...");
+    LOGE("[Native] All configs failed. Retrying in 1s...");
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
 
   if (!opened || !isRunning) {
-    LOGE("Native Error: Failed to open PCM after retries.");
+    LOGE("[Native] Error: Failed to open PCM after retries.");
     if (pcm)
       pcm_close(pcm);
     isRunning = false;
@@ -184,23 +184,23 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 
   unsigned int chunk_bytes = pcm_frames_to_bytes(pcm, config.period_size);
   std::vector<uint8_t> local_buf(chunk_bytes);
-  LOGD("Native: Capture Started.");
+  LOGD("[Native] Capture started.");
 
   while (isRunning) {
     if (pcm_read(pcm, local_buf.data(), chunk_bytes) == 0) {
       rb->write(local_buf.data(), chunk_bytes);
     } else {
-      // LOGE("PCM Read Error"); // Prevent spamming UI
+      // LOGE("[Native] PCM read error"); // Prevent spamming UI
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   }
   pcm_close(pcm);
-  LOGD("Native: Capture Stopped.");
+  LOGD("[Native] Capture stopped.");
 }
 
 // --- Bridge Logic ---
 void bridgeTask(int card, int device, int bufferSizeFrames) {
-  LOGD("Native: Starting Bridge Task. Buffer: %d frames", bufferSizeFrames);
+  LOGD("[Native] Starting bridge task. Buffer: %d frames", bufferSizeFrames);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
   size_t rb_size = bufferSizeFrames * bytes_per_frame;
@@ -218,7 +218,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
 
   AAudioStream *stream;
   if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {
-    LOGE("Native Error: Failed to open AAudio.");
+    LOGE("[Native] Error: Failed to open AAudio.");
     isRunning = false;
     c_thread.join();
     return;
@@ -228,11 +228,11 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   AAudioStream_requestStart(stream);
 
   // Pre-buffer 50%
-  LOGD("Native: Pre-buffering...");
+  LOGD("[Native] Pre-buffering...");
   while (isRunning && rb.available() < (rb_size / 2)) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
-  LOGD("Native: Playback Started!");
+  LOGD("[Native] Playback started!");
 
   int32_t burstFrames = AAudioStream_getFramesPerBurst(stream);
   size_t burstBytes = burstFrames * bytes_per_frame;
@@ -249,7 +249,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
   AAudioStream_requestStop(stream);
   AAudioStream_close(stream);
   c_thread.join();
-  LOGD("Native: Bridge Task Finished.");
+  LOGD("[Native] Bridge task finished.");
 
   // Clean up Global Ref when done?
   // Ideally yes, but since we are detaching, we'll leave it for stopBridge
@@ -279,5 +279,5 @@ Java_com_flopster101_usbaudiobridge_AudioService_stopAudioBridge(
   if (!isRunning)
     return;
   isRunning = false;
-  LOGD("Native: Stop Requested.");
+  LOGD("[Native] Stop requested.");
 }

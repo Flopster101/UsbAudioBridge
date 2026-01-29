@@ -37,7 +37,7 @@ class AudioService : Service() {
     fun onNativeLog(msg: String) {
         // Broadcast to Activity
         val intent = Intent(ACTION_LOG)
-        intent.putExtra(EXTRA_MSG, "[Native] $msg")
+        intent.putExtra(EXTRA_MSG, msg)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
@@ -95,28 +95,28 @@ class AudioService : Service() {
              // If Gadget is already active, we just re-apply policies to be sure and exit
              if (UsbGadgetManager.isGadgetActive()) {
                   UsbGadgetManager.applySeLinuxPolicy { msg -> broadcastLog(msg) }
-                  broadcastLog("Gadget already active.")
+                  broadcastLog("[App] Gadget already active.")
                   return@launch
              }
              
              // If gadget is NOT active, UsbGadgetManager.enableGadget will apply policies for us
-             broadcastLog("Setting up USB Gadget Config...")
+             broadcastLog("[App] Setting up USB gadget config...")
              val success = UsbGadgetManager.enableGadget { msg -> broadcastLog(msg) }
              if (success) {
-                  broadcastLog("Gadget Configured. Please Connect USB Cable now.")
+                  broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
-                  broadcastLog("Failed to configure Gadget.")
+                  broadcastLog("[App] Failed to configure gadget.")
              }
         }
     }
 
     fun stopAudioOnly() {
         if (!isBridgeRunning) return
-        broadcastLog("Stopping Audio Capture...")
+        broadcastLog("[App] Stopping audio capture...")
         stopAudioBridge()
         isBridgeRunning = false
         updateNotification("Monitoring Paused (Gadget Active)")
-        broadcastLog("Audio Stopped.")
+        broadcastLog("[App] Audio stopped.")
     }
 
     fun disableGadget() {
@@ -129,15 +129,15 @@ class AudioService : Service() {
         if (isBridgeRunning) return
         
         serviceScope.launch {
-            broadcastLog("Scanning for Audio Card...")
+            broadcastLog("[App] Scanning for audio card...")
             val cardId = UsbGadgetManager.findAndPrepareCard { msg -> broadcastLog(msg) }
             
             if (cardId < 0) {
-                broadcastLog("ERROR: UAC2 Card not found. Check cable/host.")
+                broadcastLog("[App] Error: UAC2 card not found. Check cable/host.")
                 return@launch
             }
 
-            broadcastLog("Starting Native Capture on Card $cardId...")
+            broadcastLog("[App] Starting native capture on card $cardId...")
             startAudioBridge(cardId, 0, bufferSize)
             
             isBridgeRunning = true
@@ -147,11 +147,11 @@ class AudioService : Service() {
 
     fun stopBridge() {
         if (isBridgeRunning) {
-            broadcastLog("Stopping Audio Bridge...")
+            broadcastLog("[App] Stopping audio bridge...")
             stopAudioBridge()
             isBridgeRunning = false
             updateNotification("Monitoring Stopped")
-            broadcastLog("Audio Stopped.")
+            broadcastLog("[App] Audio stopped.")
         }
         // Always try to disable the gadget
         serviceScope.launch {

@@ -39,14 +39,15 @@ class MainActivity : AppCompatActivity() {
             val binder = service as AudioService.LocalBinder
             audioService = binder.getService()
             isBound = true
-            log("Service Connected")
+            isBound = true
+            log("[App] Service connected")
             restoreUiState()
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             isBound = false
             audioService = null
-            log("Service Disconnected")
+            log("[App] Service disconnected")
         }
     }
 
@@ -71,7 +72,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         setupListeners()
-        log("App Launched. Waiting for commands...")
+        log("[App] App launched. Waiting for commands...")
     }
 
     private fun setupListeners() {
@@ -114,14 +115,14 @@ class MainActivity : AppCompatActivity() {
                      if (gadgetActive) {
                          switchEnable.isChecked = true
                          btnStartAudio.isEnabled = true
-                         log("Existing USB Gadget Configuration Found.")
+                         log("[App] Existing USB gadget configuration found.")
                      }
                      
                      // 2. Check if Service is actively streaming
                      if (service.isBridgeRunning) {
                          btnStartAudio.text = "Stop Audio Capture"
                          textLog.text = "" 
-                         log("Restored Connection to Active Audio Stream")
+                         log("[App] Restored connection to active audio stream")
                      } else {
                          btnStartAudio.text = "2. Start Audio Capture"
                      }

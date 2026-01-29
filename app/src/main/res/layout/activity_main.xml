@@ -67,7 +67,7 @@
             android:fontFamily="monospace"
             android:textSize="12sp"
             android:textColor="#00FF00"
-            android:text="Waiting for command..."/>
+            android:text=""/>
     </ScrollView>
 
 </LinearLayout>
