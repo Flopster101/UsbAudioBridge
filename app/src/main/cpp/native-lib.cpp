@@ -364,6 +364,13 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   int readErrorCount = 0;
   int overrunCount = 0;
   while (isRunning) {
+    // Wait up to 100ms for data. This allows checking isRunning frequently.
+    int wait_res = pcm_wait(pcm, 100);
+    if (wait_res == 0) {
+        // Timeout, check isRunning again
+        continue;
+    }
+    
     int res = pcm_read(pcm, local_buf.data(), chunk_bytes);
     if (res == 0) {
       if (rb->write(local_buf.data(), chunk_bytes) == 0) {
