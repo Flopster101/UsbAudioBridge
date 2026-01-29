@@ -338,14 +338,14 @@ fun HomeScreen(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Button(
+                        FilledTonalButton(
                             onClick = { onToggleGadget(!state.isGadgetEnabled) },
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
                             Text(if (state.isGadgetEnabled) "Disable USB Gadget" else "Enable USB Gadget")
                         }
                         Spacer(Modifier.height(12.dp))
-                        FilledTonalButton(
+                        Button(
                             onClick = onToggleCapture,
                             enabled = state.isGadgetEnabled,
                             modifier = Modifier.fillMaxWidth().height(56.dp)
@@ -536,7 +536,7 @@ fun SettingsScreen() {
 }
 
 @Composable
-fun AboutScreen() {
+    fun AboutScreen() {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -545,7 +545,7 @@ fun AboutScreen() {
         Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(16.dp))
         Text("About UsbAudioBridge", style = MaterialTheme.typography.headlineMedium)
-        Text("Version 1.0.0", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_HASH})", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
         Text("A simple tool to bridge USB audio gadgets with AAudio.", 
              style = MaterialTheme.typography.bodyMedium,
