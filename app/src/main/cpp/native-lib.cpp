@@ -148,6 +148,47 @@ void reportErrorToJava(const char *fmt, ...) {
   }
 }
 
+// Helper to report Stats to Java
+void reportStatsToJava(int rate, int period, int bufferSize) {
+  if (!javaVM || !serviceObj) {
+    LOGE("[Native] Stats report failed: VM or ServiceObj null");
+    return;
+  }
+
+  JNIEnv *env;
+  bool attached = false;
+  int getEnvStat = javaVM->GetEnv((void **)&env, JNI_VERSION_1_6);
+
+  if (getEnvStat == JNI_EDETACHED) {
+    if (javaVM->AttachCurrentThread(&env, nullptr) != 0) {
+      LOGE("[Native] Stats report failed: Could not attach thread");
+      return;
+    }
+    attached = true;
+  } else if (getEnvStat != JNI_OK) {
+    LOGE("[Native] Stats report failed: GetEnv error %d", getEnvStat);
+    return;
+  }
+
+  jclass cls = env->GetObjectClass(serviceObj);
+  jmethodID mid = env->GetMethodID(cls, "onNativeStats", "(III)V");
+  if (mid) {
+    env->CallVoidMethod(serviceObj, mid, rate, period, bufferSize);
+    if (env->ExceptionCheck()) {
+      LOGE("[Native] Exception handling onNativeStats!");
+      env->ExceptionDescribe();
+      env->ExceptionClear();
+    }
+  } else {
+    LOGE("[Native] Stats report failed: Method ID not found");
+  }
+  env->DeleteLocalRef(cls);
+
+  if (attached) {
+    javaVM->DetachCurrentThread();
+  }
+}
+
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
   javaVM = vm;
   return JNI_VERSION_1_6;
@@ -218,7 +259,9 @@ private:
 };
 
 // --- Capture Thread ---
-void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
+// Added period_size output ptr to report back to bridge
+void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
+                 int *out_period_size) {
   setHighPriority();
   struct pcm_config config;
   memset(&config, 0, sizeof(config));
@@ -248,6 +291,8 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 
       if (pcm && pcm_is_ready(pcm)) {
         opened = true;
+        if (out_period_size)
+          *out_period_size = (int)p_size;
         LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u)",
              rate);
         break;
@@ -326,18 +371,19 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 }
 
 // --- Bridge Logic ---
-void bridgeTask(int card, int device, int /* bufferSizeFrames */) {
+void bridgeTask(int card, int device, int bufferSizeFrames) {
   setHighPriority();
 
-  // Moderate Buffer: 4096 frames (~85ms @ 48k)
-  size_t deep_buffer_frames = 4096;
+  // Use user-provided buffer size (Minimum 480 to avoid issues)
+  size_t deep_buffer_frames = (size_t)std::max(480, bufferSizeFrames);
   LOGD("[Native] Starting bridge task. Buffer: %zu frames", deep_buffer_frames);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
   size_t rb_size = deep_buffer_frames * bytes_per_frame;
   RingBuffer rb(rb_size);
 
-  std::thread c_thread(captureLoop, card, device, &rb);
+  int actual_period_size = 0;
+  std::thread c_thread(captureLoop, card, device, &rb, &actual_period_size);
 
   // Hardcoded 48kHz
   int32_t rate = 48000;
@@ -376,13 +422,24 @@ void bridgeTask(int card, int device, int /* bufferSizeFrames */) {
       break; // 1s Safety timeout
   }
   LOGD("[Native] Host opened device (Streaming started).");
+  reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
 
   int32_t burstFrames = AAudioStream_getFramesPerBurst(stream);
   size_t burstBytes = burstFrames * bytes_per_frame;
   std::vector<uint8_t> p_buf(burstBytes);
 
   // Consume Loop
+  int stats_counter = 0;
   while (isRunning) {
+    // Re-send stats approx every 1 second (10 * 100ms timeout)
+    // Actually, buffer read is fast. Let's count bytes or loops.
+    // If rate is 48000, 1 sec is 48000 frames.
+    // This is a rough heartbeat.
+    if (++stats_counter > 500) {
+      reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
+      stats_counter = 0;
+    }
+
     size_t read_bytes = rb.read(p_buf.data(), burstBytes);
 
     if (read_bytes > 0) {

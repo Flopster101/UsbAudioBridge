@@ -29,6 +29,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textLog: TextView
     private lateinit var scrollLog: android.widget.ScrollView
 
+    // Dashboard UI
+    private lateinit var textStatusState: TextView
+    private lateinit var textStatusRate: TextView
+    private lateinit var textStatusPeriod: TextView
+    private lateinit var textStatusBuffer: TextView
+
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra(AudioService.EXTRA_MSG) ?: return
@@ -41,10 +47,33 @@ class MainActivity : AppCompatActivity() {
             val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
             if (isRunning) {
                 btnStartAudio.text = "Stop Audio Capture"
-                // Clear log if starting fresh? Maybe not, user might want history.
+                textStatusState.text = "State: Active (Waiting for Host...)"
+                textStatusState.setTextColor(getColor(android.R.color.holo_green_light))
             } else {
                 btnStartAudio.text = "2. Start Audio Capture"
+                textStatusState.text = "State: Stopped"
+                textStatusState.setTextColor(getColor(android.R.color.white))
+                // Reset stats?
+                textStatusRate.text = "Rate: --"
+                textStatusPeriod.text = "Period: --"
+                textStatusBuffer.text = "Buffer: --"
             }
+        }
+    }
+
+    private val statsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null) return
+            val rate = intent.getIntExtra(AudioService.EXTRA_RATE, 0)
+            val period = intent.getIntExtra(AudioService.EXTRA_PERIOD, 0)
+            val buffer = intent.getIntExtra(AudioService.EXTRA_BUFFER, 0)
+
+            textStatusRate.text = "Rate: $rate Hz"
+            textStatusPeriod.text = "Period: $period frames"
+            textStatusBuffer.text = "Buffer: $buffer frames"
+            
+            // If we get stats, we are definitely streaming
+            textStatusState.text = "State: Streaming"
         }
     }
 
@@ -79,6 +108,12 @@ class MainActivity : AppCompatActivity() {
         textLog = findViewById(R.id.textLog)
         scrollLog = findViewById(R.id.scrollLog)
 
+        // Dashboard
+        textStatusState = findViewById(R.id.textStatusState)
+        textStatusRate = findViewById(R.id.textStatusRate)
+        textStatusPeriod = findViewById(R.id.textStatusPeriod)
+        textStatusBuffer = findViewById(R.id.textStatusBuffer)
+
         val intent = Intent(this, AudioService::class.java)
         startService(intent)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
@@ -88,6 +123,9 @@ class MainActivity : AppCompatActivity() {
         )
         LocalBroadcastManager.getInstance(this).registerReceiver(
             stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED)
+        )
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE)
         )
 
         setupListeners()
@@ -174,6 +212,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(statsReceiver)
         if (isBound) unbindService(connection)
     }
 }

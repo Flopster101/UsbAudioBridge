@@ -24,8 +24,12 @@ class AudioService : Service() {
         const val TAG = "AudioService"
         const val ACTION_LOG = "com.flopster101.usbaudiobridge.LOG"
         const val ACTION_STATE_CHANGED = "com.flopster101.usbaudiobridge.STATE_CHANGED"
+        const val ACTION_STATS_UPDATE = "com.flopster101.usbaudiobridge.STATS_UPDATE"
         const val EXTRA_MSG = "msg"
         const val EXTRA_IS_RUNNING = "isRunning"
+        const val EXTRA_RATE = "rate"
+        const val EXTRA_PERIOD = "period"
+        const val EXTRA_BUFFER = "buffer"
         
         init {
             System.loadLibrary("usbaudio")
@@ -70,6 +74,16 @@ class AudioService : Service() {
             Log.d(TAG, "Promoted thread $tid to SCHED_FIFO")
             broadcastLog("[App] Thread $tid promoted to Real-Time (FIFO)")
         }
+    }
+
+    // Called from C++ JNI
+    fun onNativeStats(rate: Int, period: Int, buffer: Int) {
+        val intent = Intent(ACTION_STATS_UPDATE).apply {
+            putExtra(EXTRA_RATE, rate)
+            putExtra(EXTRA_PERIOD, period)
+            putExtra(EXTRA_BUFFER, buffer)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     private val binder = LocalBinder()
@@ -170,8 +184,6 @@ class AudioService : Service() {
             }
 
             broadcastLog("[App] Starting native capture on card $cardId...")
-            startAudioBridge(cardId, 0, bufferSize)
-            
             startAudioBridge(cardId, 0, bufferSize)
             
             isBridgeRunning = true
