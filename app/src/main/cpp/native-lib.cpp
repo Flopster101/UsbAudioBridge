@@ -248,7 +248,8 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 
       if (pcm && pcm_is_ready(pcm)) {
         opened = true;
-        LOGD("[Native] Success! Opened: %u Hz, Period: %zu", rate, p_size);
+        LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u)",
+             rate);
         break;
       }
 
@@ -276,7 +277,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
 
   unsigned int chunk_bytes = pcm_frames_to_bytes(pcm, config.period_size);
   std::vector<uint8_t> local_buf(chunk_bytes);
-  LOGD("[Native] Capture started.");
+  // LOGD("[Native] Capture loop running.");
 
   int readErrorCount = 0;
   int overrunCount = 0;
@@ -321,7 +322,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb) {
     }
   }
   pcm_close(pcm);
-  LOGD("[Native] Capture stopped.");
+  LOGD("[Native] Host closed device (Capture stopped).");
 }
 
 // --- Bridge Logic ---
@@ -374,7 +375,7 @@ void bridgeTask(int card, int device, int /* bufferSizeFrames */) {
     if (wait_count++ > 200)
       break; // 1s Safety timeout
   }
-  LOGD("[Native] Playback started!");
+  LOGD("[Native] Host opened device (Streaming started).");
 
   int32_t burstFrames = AAudioStream_getFramesPerBurst(stream);
   size_t burstBytes = burstFrames * bytes_per_frame;
