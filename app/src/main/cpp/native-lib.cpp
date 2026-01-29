@@ -291,7 +291,7 @@ private:
 // --- Capture Thread ---
 // Added period_size output ptr to report back to bridge
 void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
-                 int *out_period_size) {
+                 int *out_period_size, int requested_period_size) {
   setHighPriority();
   struct pcm_config config;
   memset(&config, 0, sizeof(config));
@@ -304,9 +304,13 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   // Hardcoded 48kHz (Standard Android/USB Audio)
   unsigned int rate = 48000;
 
-  // Configs: Try 1024 (20ms) then 480 (10ms).
-  // 1024 is safer for older CPUs.
-  const size_t periods[] = {1024, 480, 240};
+  // Configs: Try user requested, or defaults 1024 (20ms) then 480 (10ms).
+  std::vector<size_t> periods;
+  if (requested_period_size > 0) {
+      periods.push_back((size_t)requested_period_size);
+  } else {
+      periods = {1024, 480, 240};
+  }
 
   bool opened = false;
 
@@ -324,8 +328,8 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
         opened = true;
         if (out_period_size)
           *out_period_size = (int)p_size;
-        LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u)",
-             rate);
+        LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u, Period: %zu)",
+             rate, p_size);
         reportStateToJava(2); // 2 = WAITING (PCM Open, No Data)
         break;
       }
@@ -424,19 +428,19 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
 }
 
 // --- Bridge Logic ---
-void bridgeTask(int card, int device, int bufferSizeFrames) {
+void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames) {
   setHighPriority();
 
   // Use user-provided buffer size (Minimum 480 to avoid issues)
   size_t deep_buffer_frames = (size_t)std::max(480, bufferSizeFrames);
-  LOGD("[Native] Starting bridge task. Buffer: %zu frames", deep_buffer_frames);
+  LOGD("[Native] Starting bridge task. Buffer: %zu frames, PeriodReq: %d", deep_buffer_frames, periodSizeFrames);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
   size_t rb_size = deep_buffer_frames * bytes_per_frame;
   RingBuffer rb(rb_size);
 
   int actual_period_size = 0;
-  std::thread c_thread(captureLoop, card, device, &rb, &actual_period_size);
+  std::thread c_thread(captureLoop, card, device, &rb, &actual_period_size, periodSizeFrames);
 
   // Hardcoded 48kHz
   int32_t rate = 48000;
@@ -528,7 +532,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames) {
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
-    JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames) {
+    JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames, jint periodSizeFrames) {
 
   // Wait for previous instance to clean up
   int safety = 0;
@@ -548,7 +552,7 @@ Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
 
   isRunning = true;
   isFinished = false;
-  bridgeThread = std::thread(bridgeTask, card, device, bufferSizeFrames);
+  bridgeThread = std::thread(bridgeTask, card, device, bufferSizeFrames, periodSizeFrames);
   bridgeThread.detach();
   return true;
 }

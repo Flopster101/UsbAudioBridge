@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -65,6 +66,8 @@ data class MainUiState(
     
     // Config
     val bufferSize: Float = 4800f,
+    val periodSizeOption: Int = 0, // 0 = Auto
+    val sampleRateOption: Int = 48000,
 
     // Status
     val serviceState: String = "Idle",
@@ -78,9 +81,24 @@ data class MainUiState(
     val isLogsExpanded: Boolean = false
 )
 
+class SettingsRepository(context: Context) {
+    private val prefs = context.getSharedPreferences("UsbAudioSettings", Context.MODE_PRIVATE)
+
+    fun saveBufferSize(size: Float) = prefs.edit().putFloat("buffer_size", size).apply()
+    fun getBufferSize(): Float = prefs.getFloat("buffer_size", 4800f)
+
+    fun savePeriodSize(size: Int) = prefs.edit().putInt("period_size", size).apply()
+    fun getPeriodSize(): Int = prefs.getInt("period_size", 0)
+
+    fun resetDefaults() {
+        prefs.edit().clear().apply()
+    }
+}
+
 class MainActivity : ComponentActivity() {
 
     private var audioService: AudioService? = null
+    private lateinit var settingsRepo: SettingsRepository
     
     // Mutable State Holder
     private var uiState by mutableStateOf(MainUiState())
@@ -150,6 +168,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        settingsRepo = SettingsRepository(this)
+        // Load settings
+        uiState = uiState.copy(
+            bufferSize = settingsRepo.getBufferSize(),
+            periodSizeOption = settingsRepo.getPeriodSize()
+        )
+        
         // Start Service
         val intent = Intent(this, AudioService::class.java)
         startService(intent)
@@ -181,10 +206,24 @@ class MainActivity : ComponentActivity() {
                         if (uiState.isServiceRunning) {
                              audioService?.stopAudioOnly()
                         } else {
-                             audioService?.startBridge(uiState.bufferSize.toInt())
+                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption)
                         }
                     },
-                    onBufferSizeChange = { uiState = uiState.copy(bufferSize = it) },
+                    onBufferSizeChange = { 
+                        uiState = uiState.copy(bufferSize = it)
+                        settingsRepo.saveBufferSize(it)
+                    },
+                    onPeriodSizeChange = {
+                        uiState = uiState.copy(periodSizeOption = it)
+                        settingsRepo.savePeriodSize(it)
+                    },
+                    onResetSettings = {
+                        settingsRepo.resetDefaults()
+                        uiState = uiState.copy(
+                            bufferSize = settingsRepo.getBufferSize(),
+                            periodSizeOption = settingsRepo.getPeriodSize()
+                        )
+                    },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
                 )
             }
@@ -239,6 +278,8 @@ fun AppNavigation(
     onToggleGadget: (Boolean) -> Unit,
     onToggleCapture: () -> Unit,
     onBufferSizeChange: (Float) -> Unit,
+    onPeriodSizeChange: (Int) -> Unit,
+    onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -266,12 +307,16 @@ fun AppNavigation(
                     state = state,
                     onToggleGadget = onToggleGadget,
                     onToggleCapture = onToggleCapture,
-                    onBufferSizeChange = onBufferSizeChange,
                     onToggleLogs = onToggleLogs
                 )
             }
             composable("settings") {
-                SettingsScreen()
+                SettingsScreen(
+                    state = state,
+                    onBufferSizeChange = onBufferSizeChange,
+                    onPeriodSizeChange = onPeriodSizeChange,
+                    onResetSettings = onResetSettings
+                )
             }
             composable("about") {
                 AboutScreen()
@@ -315,7 +360,6 @@ fun HomeScreen(
     state: MainUiState,
     onToggleGadget: (Boolean) -> Unit,
     onToggleCapture: () -> Unit,
-    onBufferSizeChange: (Float) -> Unit,
     onToggleLogs: () -> Unit
 ) {
         LazyColumn(
@@ -356,39 +400,7 @@ fun HomeScreen(
                 }
             }
 
-            // Card 2: Configuration
-            item {
-                ElevatedCard(
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    shape = RoundedCornerShape(28.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text(
-                            text = "Buffer Size",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "${state.bufferSize.toInt()} frames (~${(state.bufferSize / 48).toInt()}ms)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Slider(
-                            value = state.bufferSize,
-                            onValueChange = onBufferSizeChange,
-                            valueRange = 480f..9600f,
-                            steps = 18 
-                        )
-                    }
-                }
-            }
-
-            // Card 3: Status
+            // Card 2: Status
             item {
                 Text(
                     text = "DEVICE STATUS",
@@ -522,16 +534,129 @@ fun HomeScreen(
 }
 
 @Composable
-fun SettingsScreen() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+fun SettingsScreen(
+    state: MainUiState,
+    onBufferSizeChange: (Float) -> Unit,
+    onPeriodSizeChange: (Int) -> Unit,
+    onResetSettings: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(16.dp))
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
-        Text("Coming Soon...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            Text(
+                text = "Audio Configuration",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        // Buffer Size
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Buffer Size", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${state.bufferSize.toInt()} frames (~${(state.bufferSize / 48).toInt()}ms)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Slider(
+                        value = state.bufferSize,
+                        onValueChange = onBufferSizeChange,
+                        valueRange = 480f..9600f,
+                        steps = 18
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Lower Latency",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = "Higher Stability",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            }
+        }
+
+        // Sample Rate
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Sample Rate", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "48000 Hz",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Fixed (Standard for USB Audio)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+
+        // Period Size
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Period Size (Frames)", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Controls capture latency and CPU load.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    
+                    val options = listOf(0, 1024, 480, 240, 120, 64)
+                    val labels = listOf("Auto", "1024", "480", "240", "120", "64")
+                    
+                    // Simple FlowRow equivalent or Scrollable Row
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        options.forEachIndexed { index, value ->
+                            val isSelected = state.periodSizeOption == value
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onPeriodSizeChange(value) },
+                                label = { Text(labels[index]) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reset
+        item {
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onResetSettings,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Reset to Defaults")
+            }
+        }
     }
 }
 

@@ -46,7 +46,7 @@ class AudioService : Service() {
         }
     }
 
-    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int)
+    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int)
     external fun stopAudioBridge()
 
     // Called from C++ JNI
@@ -238,7 +238,7 @@ class AudioService : Service() {
         }
     }
 
-    fun startBridge(bufferSize: Int) {
+    fun startBridge(bufferSize: Int, periodSize: Int = 0) {
         if (isBridgeRunning) return
         
         serviceScope.launch {
@@ -251,7 +251,7 @@ class AudioService : Service() {
             }
 
             broadcastLog("[App] Starting native capture on card $cardId...")
-            startAudioBridge(cardId, 0, bufferSize)
+            startAudioBridge(cardId, 0, bufferSize, periodSize)
             
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING
