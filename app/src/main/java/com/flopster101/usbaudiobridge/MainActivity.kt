@@ -25,7 +25,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchEnable: SwitchMaterial
     private lateinit var sliderBuffer: Slider
     private lateinit var textBufferValue: TextView
+
     private lateinit var textLog: TextView
+    private lateinit var scrollLog: android.widget.ScrollView
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -61,7 +63,9 @@ class MainActivity : AppCompatActivity() {
         btnStartAudio = findViewById(R.id.btnStartAudio)
         sliderBuffer = findViewById(R.id.sliderBuffer)
         textBufferValue = findViewById(R.id.textBufferValue)
+
         textLog = findViewById(R.id.textLog)
+        scrollLog = findViewById(R.id.scrollLog)
 
         val intent = Intent(this, AudioService::class.java)
         startService(intent)
@@ -135,7 +139,19 @@ class MainActivity : AppCompatActivity() {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val line = "[$time] $msg\n"
         runOnUiThread {
+            // Check if user is scrolled to the bottom (with small tolerance)
+            // TextView height grows, so we check if the scroll view is showing the bottom of the TextView
+            val viewDiff = (textLog.bottom - (scrollLog.height + scrollLog.scrollY))
+            val wasAtBottom = viewDiff <= 100 // 100px tolerance for "at bottom"
+
             textLog.append(line)
+            
+            if (wasAtBottom) {
+                // Determine new scroll position
+                scrollLog.post { 
+                    scrollLog.fullScroll(android.view.View.FOCUS_DOWN) 
+                }
+            }
         }
     }
 
