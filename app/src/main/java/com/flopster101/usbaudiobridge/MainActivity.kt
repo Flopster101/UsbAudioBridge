@@ -8,37 +8,78 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
-import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.slider.Slider
-import com.google.android.material.switchmaterial.SwitchMaterial
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+// UI State Definition
+data class MainUiState(
+    val isGadgetEnabled: Boolean = false,
+    val isServiceRunning: Boolean = false, // Streaming active?
+    val isAppBound: Boolean = false,       // Service bound?
+    
+    // Config
+    val bufferSize: Float = 4800f,
+
+    // Status
+    val serviceState: String = "Idle",
+    val serviceStateColor: Long = 0xFF888888, // ARGB Long
+    val sampleRate: String = "--",
+    val periodSize: String = "--",
+    val currentBuffer: String = "--",
+
+    // Logs
+    val logText: String = "",
+    val isLogsExpanded: Boolean = false
+)
+
+class MainActivity : ComponentActivity() {
 
     private var audioService: AudioService? = null
-    private var isBound = false
-
-    private lateinit var switchEnable: SwitchMaterial
-    private lateinit var sliderBuffer: Slider
-    private lateinit var textBufferValue: TextView
-
-    private lateinit var textLog: TextView
-    private lateinit var scrollLog: android.widget.ScrollView
-
-    // Dashboard UI
-    private lateinit var textStatusState: TextView
-    private lateinit var textStatusRate: TextView
-    private lateinit var textStatusPeriod: TextView
-    private lateinit var textStatusBuffer: TextView
+    
+    // Mutable State Holder
+    private var uiState by mutableStateOf(MainUiState())
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra(AudioService.EXTRA_MSG) ?: return
-            log(msg)
+            appendLog(msg)
         }
     }
 
@@ -46,17 +87,20 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
             if (isRunning) {
-                btnStartAudio.text = "Stop Audio Capture"
-                textStatusState.text = "State: Active (Waiting for Host...)"
-                textStatusState.setTextColor(getColor(android.R.color.holo_green_light))
+                uiState = uiState.copy(
+                    isServiceRunning = true,
+                    serviceState = "Active (Waiting for Host...)",
+                    serviceStateColor = 0xFFFFC107 // Amber
+                )
             } else {
-                btnStartAudio.text = "2. Start Audio Capture"
-                textStatusState.text = "State: Stopped"
-                textStatusState.setTextColor(getColor(android.R.color.white))
-                // Reset stats?
-                textStatusRate.text = "Rate: --"
-                textStatusPeriod.text = "Period: --"
-                textStatusBuffer.text = "Buffer: --"
+                uiState = uiState.copy(
+                    isServiceRunning = false,
+                    serviceState = "Stopped",
+                    serviceStateColor = 0xFF888888, // Gray
+                    sampleRate = "--",
+                    periodSize = "--",
+                    currentBuffer = "--"
+                )
             }
         }
     }
@@ -68,12 +112,13 @@ class MainActivity : AppCompatActivity() {
             val period = intent.getIntExtra(AudioService.EXTRA_PERIOD, 0)
             val buffer = intent.getIntExtra(AudioService.EXTRA_BUFFER, 0)
 
-            textStatusRate.text = "Rate: $rate Hz"
-            textStatusPeriod.text = "Period: $period frames"
-            textStatusBuffer.text = "Buffer: $buffer frames"
-            
-            // If we get stats, we are definitely streaming
-            textStatusState.text = "State: Streaming"
+            uiState = uiState.copy(
+                serviceState = "Streaming",
+                serviceStateColor = 0xFF4CAF50, // Green
+                sampleRate = "$rate Hz",
+                periodSize = "$period frames",
+                currentBuffer = "$buffer frames"
+            )
         }
     }
 
@@ -81,131 +126,93 @@ class MainActivity : AppCompatActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as AudioService.LocalBinder
             audioService = binder.getService()
-            isBound = true
-            isBound = true
-            log("[App] Service connected")
+            uiState = uiState.copy(isAppBound = true)
+            appendLog("[App] Service connected")
             restoreUiState()
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
-            isBound = false
+            uiState = uiState.copy(isAppBound = false)
             audioService = null
-            log("[App] Service disconnected")
+            appendLog("[App] Service disconnected")
         }
     }
 
-    private lateinit var btnStartAudio: android.widget.Button
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        switchEnable = findViewById(R.id.switchEnable)
-        btnStartAudio = findViewById(R.id.btnStartAudio)
-        sliderBuffer = findViewById(R.id.sliderBuffer)
-        textBufferValue = findViewById(R.id.textBufferValue)
-
-        textLog = findViewById(R.id.textLog)
-        scrollLog = findViewById(R.id.scrollLog)
-
-        // Dashboard
-        textStatusState = findViewById(R.id.textStatusState)
-        textStatusRate = findViewById(R.id.textStatusRate)
-        textStatusPeriod = findViewById(R.id.textStatusPeriod)
-        textStatusBuffer = findViewById(R.id.textStatusBuffer)
-
+        enableEdgeToEdge()
+        
+        // Start Service
         val intent = Intent(this, AudioService::class.java)
         startService(intent)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
         
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            logReceiver, IntentFilter(AudioService.ACTION_LOG)
-        )
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED)
-        )
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE)
-        )
+        // Register Receivers
+        LocalBroadcastManager.getInstance(this).registerReceiver(logReceiver, IntentFilter(AudioService.ACTION_LOG))
+        LocalBroadcastManager.getInstance(this).registerReceiver(stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED))
+        LocalBroadcastManager.getInstance(this).registerReceiver(statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE))
 
-        setupListeners()
-        log("[App] App launched. Waiting for commands...")
-    }
-
-    private fun setupListeners() {
-        switchEnable.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                // Always call enableGadget to ensure SELinux policies are reapplied/updated
-                audioService?.enableGadget()
-                btnStartAudio.isEnabled = true
-            } else {
-                audioService?.stopBridge() // This stops audio AND disables gadget logic in AudioService
-                btnStartAudio.isEnabled = false
-                btnStartAudio.text = "2. Start Audio Capture"
+        setContent {
+            // Basic Material Theme wrapper
+            MaterialTheme(
+                colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) 
+                    dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
+            ) {
+                AppNavigation(
+                    state = uiState,
+                    onToggleGadget = { enable ->
+                         if (enable) {
+                             audioService?.enableGadget()
+                             uiState = uiState.copy(isGadgetEnabled = true)
+                         } else {
+                             audioService?.stopBridge()
+                             uiState = uiState.copy(isGadgetEnabled = false, isServiceRunning = false)
+                         }
+                    },
+                    onToggleCapture = {
+                        if (uiState.isServiceRunning) {
+                             audioService?.stopAudioOnly()
+                        } else {
+                             audioService?.startBridge(uiState.bufferSize.toInt())
+                        }
+                    },
+                    onBufferSizeChange = { uiState = uiState.copy(bufferSize = it) },
+                    onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
+                )
             }
-        }
-        
-        btnStartAudio.setOnClickListener {
-             if (audioService?.isBridgeRunning == true) {
-                 audioService?.stopAudioOnly()
-                 btnStartAudio.text = "2. Start Audio Capture"
-             } else {
-                 val bufferSize = sliderBuffer.value.toInt()
-                 audioService?.startBridge(bufferSize)
-                 btnStartAudio.text = "Stop Audio Capture"
-             }
-        }
-
-        sliderBuffer.addOnChangeListener { _, value, _ ->
-            val frames = value.toInt()
-            val ms = frames / 48
-            textBufferValue.text = "Buffer Size: $frames frames (~${ms}ms)"
         }
     }
 
     private fun restoreUiState() {
         audioService?.let { service ->
-             // 1. Check if Gadget is Active (Native check via Root)
              Thread {
                  val gadgetActive = UsbGadgetManager.isGadgetActive()
                  runOnUiThread {
-                     if (gadgetActive) {
-                         switchEnable.isChecked = true
-                         btnStartAudio.isEnabled = true
-                         log("[App] Existing USB gadget configuration found.")
-                     }
+                     uiState = uiState.copy(isGadgetEnabled = gadgetActive)
                      
-                     // 2. Check if Service is actively streaming
                      if (service.isBridgeRunning) {
-                         btnStartAudio.text = "Stop Audio Capture"
-                         textLog.text = "" 
-                         log("[App] Restored connection to active audio stream")
-                     } else {
-                         btnStartAudio.text = "2. Start Audio Capture"
+                         uiState = uiState.copy(isServiceRunning = true)
+                         appendLog("[App] Restored connection to active stream")
                      }
                  }
              }.start()
         }
     }
 
-    private fun log(msg: String) {
+    private fun appendLog(msg: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val line = "[$time] $msg\n"
-        runOnUiThread {
-            // Check if user is scrolled to the bottom (with small tolerance)
-            // TextView height grows, so we check if the scroll view is showing the bottom of the TextView
-            val viewDiff = (textLog.bottom - (scrollLog.height + scrollLog.scrollY))
-            val wasAtBottom = viewDiff <= 100 // 100px tolerance for "at bottom"
-
-            textLog.append(line)
-            
-            if (wasAtBottom) {
-                // Determine new scroll position
-                scrollLog.post { 
-                    scrollLog.fullScroll(android.view.View.FOCUS_DOWN) 
-                }
+        
+        var currentText = uiState.logText + line
+        // Circular Buffer Logic
+        if (currentText.length > 5000) {
+            val excess = currentText.length - 3000
+            val cutIndex = currentText.indexOf('\n', excess)
+            if (cutIndex != -1) {
+                currentText = currentText.substring(cutIndex + 1)
             }
         }
+        uiState = uiState.copy(logText = currentText)
     }
 
     override fun onDestroy() {
@@ -213,6 +220,306 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statsReceiver)
-        if (isBound) unbindService(connection)
+        if (uiState.isAppBound) unbindService(connection)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppNavigation(
+    state: MainUiState,
+    onToggleGadget: (Boolean) -> Unit,
+    onToggleCapture: () -> Unit,
+    onBufferSizeChange: (Float) -> Unit,
+    onToggleLogs: () -> Unit
+) {
+    val navController = rememberNavController()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeTopAppBar(
+                title = { Text("USB Audio Bridge") },
+                scrollBehavior = scrollBehavior
+            )
+        },
+        bottomBar = {
+            BottomNavBar(navController = navController)
+        }
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = "home",
+            modifier = Modifier.padding(padding)
+        ) {
+            composable("home") {
+                HomeScreen(
+                    state = state,
+                    onToggleGadget = onToggleGadget,
+                    onToggleCapture = onToggleCapture,
+                    onBufferSizeChange = onBufferSizeChange,
+                    onToggleLogs = onToggleLogs
+                )
+            }
+            composable("settings") {
+                SettingsScreen()
+            }
+            composable("about") {
+                AboutScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomNavBar(navController: NavController) {
+    val items = listOf("Home", "Settings", "About")
+    val icons = listOf(Icons.Default.Home, Icons.Default.Settings, Icons.Default.Info)
+    val routes = listOf("home", "settings", "about")
+
+    NavigationBar {
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+
+        items.forEachIndexed { index, item ->
+            NavigationBarItem(
+                icon = { Icon(icons[index], contentDescription = item) },
+                label = { Text(item) },
+                selected = currentRoute == routes[index],
+                onClick = {
+                    navController.navigate(routes[index]) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    state: MainUiState,
+    onToggleGadget: (Boolean) -> Unit,
+    onToggleCapture: () -> Unit,
+    onBufferSizeChange: (Float) -> Unit,
+    onToggleLogs: () -> Unit
+) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Card 1: Main Controls
+            item {
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Button(
+                            onClick = { onToggleGadget(!state.isGadgetEnabled) },
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                        ) {
+                            Text(if (state.isGadgetEnabled) "Disable USB Gadget" else "Enable USB Gadget")
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        FilledTonalButton(
+                            onClick = onToggleCapture,
+                            enabled = state.isGadgetEnabled,
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                        ) {
+                            Text(if (state.isServiceRunning) "Stop Audio Capture" else "Start Audio Capture")
+                        }
+                    }
+                }
+            }
+
+            // Card 2: Configuration
+            item {
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = "Buffer Size",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "${state.bufferSize.toInt()} frames (~${(state.bufferSize / 48).toInt()}ms)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Slider(
+                            value = state.bufferSize,
+                            onValueChange = onBufferSizeChange,
+                            valueRange = 480f..9600f,
+                            steps = 18 
+                        )
+                    }
+                }
+            }
+
+            // Card 3: Status
+            item {
+                Text(
+                    text = "DEVICE STATUS",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
+                )
+            
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        StatusRow("State", state.serviceState, Color(state.serviceStateColor))
+                        Spacer(Modifier.height(8.dp))
+                        StatusRow("Sample Rate", state.sampleRate)
+                        Spacer(Modifier.height(8.dp))
+                        StatusRow("Period Size", state.periodSize)
+                        Spacer(Modifier.height(8.dp))
+                        StatusRow("Current Buffer", state.currentBuffer)
+                    }
+                }
+            }
+
+            // Card 4: Logs
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleLogs() }
+                        .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "DEBUG LOGS",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    val rotation by animateFloatAsState(
+                        targetValue = if (state.isLogsExpanded) 180f else 0f, 
+                        label = "arrowRotation"
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.rotate(rotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = state.isLogsExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    ElevatedCard(
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
+                    ) {
+                        val logScroll = rememberScrollState()
+                        LaunchedEffect(state.logText) {
+                            logScroll.animateScrollTo(logScroll.maxValue)
+                        }
+                        
+                        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                             Text(
+                                 text = state.logText,
+                                 fontFamily = FontFamily.Monospace,
+                                 fontSize = 12.sp,
+                                 color = MaterialTheme.colorScheme.onSurface,
+                                 modifier = Modifier.verticalScroll(logScroll)
+                             )
+                        }
+                    }
+                }
+            }
+            
+            // Bottom Padding
+            item {
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+}
+
+@Composable
+fun SettingsScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(16.dp))
+        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        Text("Coming Soon...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun AboutScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(16.dp))
+        Text("About UsbAudioBridge", style = MaterialTheme.typography.headlineMedium)
+        Text("Version 1.0.0", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Text("A simple tool to bridge USB audio gadgets with AAudio.", 
+             style = MaterialTheme.typography.bodyMedium,
+             color = MaterialTheme.colorScheme.onSurfaceVariant,
+             modifier = Modifier.padding(32.dp),
+             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+@Composable
+fun StatusRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }
