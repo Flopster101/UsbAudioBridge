@@ -24,6 +24,10 @@ class SettingsRepository(context: Context) {
     fun saveAutoRestartOnOutputChange(enabled: Boolean) = prefs.edit().putBoolean("auto_restart_output", enabled).apply()
     fun getAutoRestartOnOutputChange(): Boolean = prefs.getBoolean("auto_restart_output", false)
 
+    // 1 = Speaker (Host->Phone), 2 = Mic (Phone->Host), 3 = Both
+    fun saveActiveDirections(mask: Int) = prefs.edit().putInt("active_directions", mask).apply()
+    fun getActiveDirections(): Int = prefs.getInt("active_directions", 1)
+
     // Kernel compatibility notice
     fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
     fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()

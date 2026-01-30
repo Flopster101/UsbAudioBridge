@@ -41,6 +41,7 @@ class AudioService : Service() {
         const val EXTRA_RATE = "rate"
         const val EXTRA_PERIOD = "period"
         const val EXTRA_BUFFER = "buffer"
+        const val EXTRA_ACTIVE_DIRECTIONS = "activeDirections"
 
         // State Codes matching Native
         const val STATE_STOPPED = 0
@@ -123,7 +124,7 @@ class AudioService : Service() {
         }
     }
 
-    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int)
+    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int, activeDirections: Int)
     external fun stopAudioBridge()
 
     // Called from C++ JNI
@@ -216,7 +217,7 @@ class AudioService : Service() {
                 
                 // Restart with saved parameters
                 if (lastBufferSize > 0) {
-                    startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate)
+                    startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate, lastActiveDirections)
                 }
             }
         } else {
@@ -239,7 +240,9 @@ class AudioService : Service() {
     private var lastBufferSize = 0
     private var lastPeriodSize = 0
     private var lastEngineType = 0
+
     private var lastSampleRate = 48000
+    private var lastActiveDirections = 1
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -311,7 +314,7 @@ class AudioService : Service() {
         }
 
         if (!isBridgeRunning) {
-            broadcastState("Stopped", 0xFF888888)
+            broadcastState("Stopped", 0xFF888888, 0)
             return
         }
 
@@ -331,7 +334,7 @@ class AudioService : Service() {
             STATE_IDLING -> "Active (Idling)" to 0xFF03A9F4 // Light Blue
             else -> "Active" to 0xFF888888
         }
-        broadcastState(label, color)
+        broadcastState(label, color, lastActiveDirections)
     }
 
     fun isGadgetActive(): Boolean {
@@ -408,7 +411,7 @@ class AudioService : Service() {
         }
     }
 
-    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000) {
+    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000, activeDirections: Int = 1) {
         if (isBridgeRunning) return
         
         // Save parameters for potential auto-restart on output change
@@ -416,6 +419,7 @@ class AudioService : Service() {
         lastPeriodSize = periodSize
         lastEngineType = engineType
         lastSampleRate = sampleRate
+        lastActiveDirections = activeDirections
         
         serviceScope.launch {
             broadcastLog("[App] Scanning for audio card...")
@@ -426,8 +430,8 @@ class AudioService : Service() {
                 return@launch
             }
 
-            broadcastLog("[App] Starting native capture on card $cardId ($sampleRate Hz)...")
-            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate)
+            broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections)...")
+            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections)
             
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING
@@ -465,11 +469,12 @@ class AudioService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    private fun broadcastState(label: String, color: Long) {
+    private fun broadcastState(label: String, color: Long, activeDirections: Int = 0) {
         val intent = Intent(ACTION_STATE_CHANGED)
         intent.putExtra(EXTRA_IS_RUNNING, isBridgeRunning)
         intent.putExtra(EXTRA_STATE_LABEL, label)
         intent.putExtra(EXTRA_STATE_COLOR, color)
+        intent.putExtra(EXTRA_ACTIVE_DIRECTIONS, activeDirections)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 

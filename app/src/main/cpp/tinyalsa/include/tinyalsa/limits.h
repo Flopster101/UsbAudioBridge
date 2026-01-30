@@ -29,10 +29,9 @@
 #ifndef TINYALSA_LIMITS_H
 #define TINYALSA_LIMITS_H
 
-#include <tinyalsa/interval.h>
-
 #include <limits.h>
 #include <stdint.h>
+#include <tinyalsa/interval.h>
 
 #define TINYALSA_SIGNED_INTERVAL_MAX SSIZE_MAX
 #define TINYALSA_SIGNED_INTERVAL_MIN SSIZE_MIN
@@ -59,4 +58,3 @@ extern const struct tinyalsa_unsigned_interval tinyalsa_channels_limit;
 extern const struct tinyalsa_unsigned_interval tinyalsa_frames_limit;
 
 #endif /* TINYALSA_LIMITS_H */
-

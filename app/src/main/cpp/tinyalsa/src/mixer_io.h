@@ -30,22 +30,20 @@
 #ifndef TINYALSA_SRC_MIXER_H
 #define TINYALSA_SRC_MIXER_H
 
+#include <sound/asound.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sound/asound.h>
 
 struct mixer_ops;
 
-int mixer_hw_open(unsigned int card, void **data,
-                  const struct mixer_ops **ops);
-int mixer_plugin_open(unsigned int card, void **data,
-                      const struct mixer_ops **ops);
+int mixer_hw_open(unsigned int card, void** data, const struct mixer_ops** ops);
+int mixer_plugin_open(unsigned int card, void** data, const struct mixer_ops** ops);
 
 struct mixer_ops {
-    void (*close) (void *data);
-    int (*get_poll_fd) (void *data, struct pollfd *pfd, int count);
-    ssize_t (*read_event) (void *data, struct snd_ctl_event *ev, size_t size);
-    int (*ioctl) (void *data, unsigned int cmd, ...);
+    void (*close)(void* data);
+    int (*get_poll_fd)(void* data, struct pollfd* pfd, int count);
+    ssize_t (*read_event)(void* data, struct snd_ctl_event* ev, size_t size);
+    int (*ioctl)(void* data, unsigned int cmd, ...);
 };
 
 #endif /* TINYALSA_SRC_MIXER_H */

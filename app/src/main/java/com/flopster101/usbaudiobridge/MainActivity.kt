@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -32,12 +33,14 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,6 +72,7 @@ data class MainUiState(
     val isGadgetEnabled: Boolean = false,
     val isGadgetPending: Boolean = false,  // Gadget operation in progress?
     val isServiceRunning: Boolean = false, // Streaming active?
+    val runningDirections: Int = 0,        // Active directions reported by service
     val isAppBound: Boolean = false,       // Service bound?
     
     // Config
@@ -78,6 +82,7 @@ data class MainUiState(
     val sampleRateOption: Int = 48000,
     val keepAdbOption: Boolean = false,
     val autoRestartOnOutputChange: Boolean = false,
+    val activeDirectionsOption: Int = 1, // 1=Speaker, 2=Mic, 3=Both
     val showKernelNotice: Boolean = false,
 
     // Status
@@ -116,9 +121,11 @@ class MainActivity : ComponentActivity() {
             val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
             val label = intent?.getStringExtra(AudioService.EXTRA_STATE_LABEL) 
             val color = intent?.getLongExtra(AudioService.EXTRA_STATE_COLOR, 0)
+            val directions = intent?.getIntExtra(AudioService.EXTRA_ACTIVE_DIRECTIONS, 0) ?: 0
             
             uiState = uiState.copy(
                 isServiceRunning = isRunning,
+                runningDirections = directions,
                 serviceState = label ?: if (isRunning) "Active" else "Stopped",
                 serviceStateColor = if (color != null && color != 0L) color else if (isRunning) 0xFFFFC107 else 0xFF888888
             )
@@ -198,6 +205,7 @@ class MainActivity : ComponentActivity() {
             sampleRateOption = settingsRepo.getSampleRate(),
             keepAdbOption = settingsRepo.getKeepAdb(),
             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
+            activeDirectionsOption = settingsRepo.getActiveDirections(),
             showKernelNotice = settingsRepo.shouldShowKernelNotice()
         )
         
@@ -248,7 +256,12 @@ class MainActivity : ComponentActivity() {
                         if (uiState.isServiceRunning) {
                              audioService?.stopAudioOnly()
                         } else {
-                             audioService?.startBridge(uiState.bufferSize.toInt(), uiState.periodSizeOption, uiState.engineTypeOption, uiState.sampleRateOption)
+                             val perm = android.Manifest.permission.RECORD_AUDIO
+                             if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
+                                 requestPermissions(arrayOf(perm), 1001)
+                             } else {
+                                 startBridgeWithState()
+                             }
                         }
                     },
                     onBufferSizeChange = { 
@@ -275,6 +288,10 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(autoRestartOnOutputChange = it)
                         settingsRepo.saveAutoRestartOnOutputChange(it)
                     },
+                    onActiveDirectionsChange = {
+                        uiState = uiState.copy(activeDirectionsOption = it)
+                        settingsRepo.saveActiveDirections(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -283,7 +300,9 @@ class MainActivity : ComponentActivity() {
                             engineTypeOption = settingsRepo.getEngineType(),
                             sampleRateOption = settingsRepo.getSampleRate(),
                             keepAdbOption = settingsRepo.getKeepAdb(),
-                            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange()
+
+                            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
+                            activeDirectionsOption = settingsRepo.getActiveDirections()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -335,6 +354,28 @@ class MainActivity : ComponentActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetStatusReceiver)
         if (uiState.isAppBound) unbindService(connection)
     }
+
+    private fun startBridgeWithState() {
+        audioService?.startBridge(
+             uiState.bufferSize.toInt(), 
+             uiState.periodSizeOption, 
+             uiState.engineTypeOption, 
+             uiState.sampleRateOption,
+             uiState.activeDirectionsOption
+        )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startBridgeWithState()
+            } else {
+                appendLog("[App] Microphone permission denied. Input will fail.")
+                startBridgeWithState()
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -349,6 +390,7 @@ fun AppNavigation(
     onSampleRateChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
     onAutoRestartChange: (Boolean) -> Unit,
+    onActiveDirectionsChange: (Int) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -393,6 +435,7 @@ fun AppNavigation(
                     onSampleRateChange = onSampleRateChange,
                     onKeepAdbChange = onKeepAdbChange,
                     onAutoRestartChange = onAutoRestartChange,
+                    onActiveDirectionsChange = onActiveDirectionsChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -480,6 +523,66 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
                             Text(if (state.isServiceRunning) "Stop Audio Capture" else "Start Audio Capture")
+                        }
+                    }
+                }
+            }
+
+            // Card 1.5: Audio Devices
+            item {
+                Text(
+                    text = "AUDIO DEVICES",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
+                )
+            
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Active devices",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            if (!state.isServiceRunning) {
+                                Text(
+                                    text = "--",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    val isSpeaker = (state.runningDirections and 1) != 0
+                                    val isMic = (state.runningDirections and 2) != 0
+
+                                    if (isSpeaker) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_volume_up),
+                                            contentDescription = "Speaker",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    if (isMic) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_mic),
+                                            contentDescription = "Microphone",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -652,6 +755,7 @@ fun SettingsScreen(
     onSampleRateChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
     onAutoRestartChange: (Boolean) -> Unit,
+    onActiveDirectionsChange: (Int) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -703,6 +807,56 @@ fun SettingsScreen(
                             text = "Higher Stability (500ms)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            }
+        }
+
+
+
+        // Active Directions (Devices)
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Audio Devices", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Select which devices to enable.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val isSpeaker = (state.activeDirectionsOption and 1) != 0
+                        val isMic = (state.activeDirectionsOption and 2) != 0
+                        
+                        FilterChip(
+                            selected = isSpeaker,
+                            onClick = { 
+                                val newMask = if (isSpeaker) state.activeDirectionsOption and 1.inv() else state.activeDirectionsOption or 1
+                                // Prevent disabling both? User said "enable/disable either as they please". 
+                                // But having NO devices makes bridge useless. Let's allow it but maybe warn? 
+                                // Or simply allow it (will just idle).
+                                onActiveDirectionsChange(newMask)
+                            },
+                            label = { Text("Speaker (Output)") },
+                            leadingIcon = { 
+                                if (isSpeaker) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) 
+                            }
+                        )
+                        
+                        FilterChip(
+                            selected = isMic,
+                            onClick = { 
+                                val newMask = if (isMic) state.activeDirectionsOption and 2.inv() else state.activeDirectionsOption or 2
+                                onActiveDirectionsChange(newMask)
+                            },
+                            label = { Text("Mic (Input)") },
+                            leadingIcon = {
+                                if (isMic) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
                         )
                     }
                 }

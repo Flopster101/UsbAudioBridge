@@ -66,7 +66,7 @@ static constexpr pcm_config kDefaultConfig = {
     .silence_size = 0,
 };
 
-} // namespace testing
-} // namespace tinyalsa
+}  // namespace testing
+}  // namespace tinyalsa
 
 #endif

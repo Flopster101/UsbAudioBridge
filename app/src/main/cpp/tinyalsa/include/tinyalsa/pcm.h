@@ -35,10 +35,9 @@
 #ifndef TINYALSA_PCM_H
 #define TINYALSA_PCM_H
 
-#include <tinyalsa/attributes.h>
-
-#include <sys/time.h>
 #include <stddef.h>
+#include <sys/time.h>
+#include <tinyalsa/attributes.h>
 
 /** A flag that specifies that the PCM is an output.
  * May not be bitwise AND'd with @ref PCM_IN.
@@ -152,9 +151,9 @@ extern "C" {
  */
 enum pcm_format {
 
-/* Note: This section must stay in the same
- * order for binary compatibility with older
- * versions of TinyALSA. */
+    /* Note: This section must stay in the same
+     * order for binary compatibility with older
+     * versions of TinyALSA. */
 
     PCM_FORMAT_INVALID = -1,
     /** Signed 16-bit, little endian */
@@ -168,7 +167,7 @@ enum pcm_format {
     /** Signed, 24-bit, little endian */
     PCM_FORMAT_S24_3LE,
 
-/* End of compatibility section. */
+    /* End of compatibility section. */
 
     /** Signed, 16-bit, big endian */
     PCM_FORMAT_S16_BE,
@@ -233,9 +232,9 @@ struct pcm_config {
  * Each of these parameters is either a mask or an interval.
  * @ingroup libtinyalsa-pcm
  */
-enum pcm_param
-{
-    /** A mask that represents the type of read or write method available (e.g. interleaved, mmap). */
+enum pcm_param {
+    /** A mask that represents the type of read or write method available (e.g. interleaved, mmap).
+     */
     PCM_PARAM_ACCESS,
     /** A mask that represents the @ref pcm_format available (e.g. @ref PCM_FORMAT_S32_LE) */
     PCM_PARAM_FORMAT,
@@ -264,16 +263,16 @@ enum pcm_param
 
 struct pcm_params;
 
-struct pcm_params *pcm_params_get(unsigned int card, unsigned int device,
-                                  unsigned int flags);
+struct pcm_params* pcm_params_get(unsigned int card, unsigned int device, unsigned int flags);
 
-void pcm_params_free(struct pcm_params *pcm_params);
+void pcm_params_free(struct pcm_params* pcm_params);
 
-const struct pcm_mask *pcm_params_get_mask(const struct pcm_params *pcm_params, enum pcm_param param);
+const struct pcm_mask* pcm_params_get_mask(const struct pcm_params* pcm_params,
+                                           enum pcm_param param);
 
-unsigned int pcm_params_get_min(const struct pcm_params *pcm_params, enum pcm_param param);
+unsigned int pcm_params_get_min(const struct pcm_params* pcm_params, enum pcm_param param);
 
-unsigned int pcm_params_get_max(const struct pcm_params *pcm_params, enum pcm_param param);
+unsigned int pcm_params_get_max(const struct pcm_params* pcm_params, enum pcm_param param);
 
 /* Converts the pcm parameters to a human readable string.
  * The string parameter is a caller allocated buffer of size bytes,
@@ -283,97 +282,93 @@ unsigned int pcm_params_get_max(const struct pcm_params *pcm_params, enum pcm_pa
  * (not including null termination) if less than size; otherwise,
  * the number of bytes required for the buffer.
  */
-int pcm_params_to_string(struct pcm_params *params, char *string, unsigned int size);
+int pcm_params_to_string(struct pcm_params* params, char* string, unsigned int size);
 
 /* Returns 1 if the pcm_format is present (format bit set) in
  * the pcm_params structure; 0 otherwise, or upon unrecognized format.
  */
-int pcm_params_format_test(struct pcm_params *params, enum pcm_format format);
+int pcm_params_format_test(struct pcm_params* params, enum pcm_format format);
 
 struct pcm;
 
-struct pcm *pcm_open(unsigned int card,
-                     unsigned int device,
-                     unsigned int flags,
-                     const struct pcm_config *config);
+struct pcm* pcm_open(unsigned int card, unsigned int device, unsigned int flags,
+                     const struct pcm_config* config);
 
-struct pcm *pcm_open_by_name(const char *name,
-                             unsigned int flags,
-                             const struct pcm_config *config);
+struct pcm* pcm_open_by_name(const char* name, unsigned int flags, const struct pcm_config* config);
 
-int pcm_close(struct pcm *pcm);
+int pcm_close(struct pcm* pcm);
 
-int pcm_is_ready(const struct pcm *pcm);
+int pcm_is_ready(const struct pcm* pcm);
 
-unsigned int pcm_get_channels(const struct pcm *pcm);
+unsigned int pcm_get_channels(const struct pcm* pcm);
 
-const struct pcm_config * pcm_get_config(const struct pcm *pcm);
+const struct pcm_config* pcm_get_config(const struct pcm* pcm);
 
-unsigned int pcm_get_rate(const struct pcm *pcm);
+unsigned int pcm_get_rate(const struct pcm* pcm);
 
-enum pcm_format pcm_get_format(const struct pcm *pcm);
+enum pcm_format pcm_get_format(const struct pcm* pcm);
 
-int pcm_get_file_descriptor(const struct pcm *pcm);
+int pcm_get_file_descriptor(const struct pcm* pcm);
 
-const char *pcm_get_error(const struct pcm *pcm);
+const char* pcm_get_error(const struct pcm* pcm);
 
-int pcm_set_config(struct pcm *pcm, const struct pcm_config *config);
+int pcm_set_config(struct pcm* pcm, const struct pcm_config* config);
 
 unsigned int pcm_format_to_bits(enum pcm_format format);
 
-unsigned int pcm_get_buffer_size(const struct pcm *pcm);
+unsigned int pcm_get_buffer_size(const struct pcm* pcm);
 
-unsigned int pcm_frames_to_bytes(const struct pcm *pcm, unsigned int frames);
+unsigned int pcm_frames_to_bytes(const struct pcm* pcm, unsigned int frames);
 
-unsigned int pcm_bytes_to_frames(const struct pcm *pcm, unsigned int bytes);
+unsigned int pcm_bytes_to_frames(const struct pcm* pcm, unsigned int bytes);
 
-int pcm_get_htimestamp(struct pcm *pcm, unsigned int *avail, struct timespec *tstamp);
+int pcm_get_htimestamp(struct pcm* pcm, unsigned int* avail, struct timespec* tstamp);
 
-unsigned int pcm_get_subdevice(const struct pcm *pcm);
+unsigned int pcm_get_subdevice(const struct pcm* pcm);
 
-int pcm_writei(struct pcm *pcm, const void *data, unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
+int pcm_writei(struct pcm* pcm, const void* data,
+               unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
 
-int pcm_readi(struct pcm *pcm, void *data, unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
+int pcm_readi(struct pcm* pcm, void* data, unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
 
-int pcm_write(struct pcm *pcm, const void *data, unsigned int count) TINYALSA_DEPRECATED;
+int pcm_write(struct pcm* pcm, const void* data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_read(struct pcm *pcm, void *data, unsigned int count) TINYALSA_DEPRECATED;
+int pcm_read(struct pcm* pcm, void* data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_mmap_write(struct pcm *pcm, const void *data, unsigned int count) TINYALSA_DEPRECATED;
+int pcm_mmap_write(struct pcm* pcm, const void* data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_mmap_read(struct pcm *pcm, void *data, unsigned int count) TINYALSA_DEPRECATED;
+int pcm_mmap_read(struct pcm* pcm, void* data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_mmap_begin(struct pcm *pcm, void **areas, unsigned int *offset, unsigned int *frames);
+int pcm_mmap_begin(struct pcm* pcm, void** areas, unsigned int* offset, unsigned int* frames);
 
-int pcm_mmap_commit(struct pcm *pcm, unsigned int offset, unsigned int frames);
+int pcm_mmap_commit(struct pcm* pcm, unsigned int offset, unsigned int frames);
 
-int pcm_mmap_avail(struct pcm *pcm);
+int pcm_mmap_avail(struct pcm* pcm);
 
-int pcm_mmap_get_hw_ptr(struct pcm* pcm, unsigned int *hw_ptr, struct timespec *tstamp);
+int pcm_mmap_get_hw_ptr(struct pcm* pcm, unsigned int* hw_ptr, struct timespec* tstamp);
 
-int pcm_get_poll_fd(struct pcm *pcm);
+int pcm_get_poll_fd(struct pcm* pcm);
 
-int pcm_link(struct pcm *pcm1, struct pcm *pcm2);
+int pcm_link(struct pcm* pcm1, struct pcm* pcm2);
 
-int pcm_unlink(struct pcm *pcm);
+int pcm_unlink(struct pcm* pcm);
 
-int pcm_prepare(struct pcm *pcm);
+int pcm_prepare(struct pcm* pcm);
 
-int pcm_start(struct pcm *pcm);
+int pcm_start(struct pcm* pcm);
 
-int pcm_drain(struct pcm *pcm);
+int pcm_drain(struct pcm* pcm);
 
-int pcm_stop(struct pcm *pcm);
+int pcm_stop(struct pcm* pcm);
 
-int pcm_wait(struct pcm *pcm, int timeout);
+int pcm_wait(struct pcm* pcm, int timeout);
 
-long pcm_get_delay(struct pcm *pcm);
+long pcm_get_delay(struct pcm* pcm);
 
-int pcm_ioctl(struct pcm *pcm, int code, ...) TINYALSA_DEPRECATED;
+int pcm_ioctl(struct pcm* pcm, int code, ...) TINYALSA_DEPRECATED;
 
 #if defined(__cplusplus)
-}  /* extern "C" */
+} /* extern "C" */
 #endif
 
 #endif
-
