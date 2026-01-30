@@ -832,7 +832,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Audio Devices", style = MaterialTheme.typography.titleMedium)
+                    Text("Audio devices", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Select which devices to enable.",
@@ -880,7 +880,7 @@ fun SettingsScreen(
         item {
             var showMicDialog by remember { mutableStateOf(false) }
             val options = listOf(6, 1, 5, 7, 9, 10)
-            val labels = listOf("Auto (VoiceRec)", "Mic", "Camcorder", "Voice Comm", "Unprocessed", "Performance")
+            val labels = listOf("Auto (voice rec)", "Mic", "Camcorder", "Voice comm", "Unprocessed", "Performance")
             
             ElevatedCard(
                 shape = RoundedCornerShape(16.dp),
@@ -891,7 +891,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Microphone Source", style = MaterialTheme.typography.titleMedium)
+                        Text("Microphone source", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "Select input preset. Affects processing (echo cancellation, noise suppression).",
@@ -913,7 +913,7 @@ fun SettingsScreen(
             
             if (showMicDialog) {
                 SelectionDialog(
-                    title = "Microphone Source",
+                    title = "Microphone source",
                     options = options,
                     labels = labels,
                     selectedOption = state.micSourceOption,
@@ -941,7 +941,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Sample Rate", style = MaterialTheme.typography.titleMedium)
+                        Text("Sample rate", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "48kHz is standard for Android. Higher rates increase CPU load and may require larger buffers.",
@@ -996,7 +996,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Audio Output Engine", style = MaterialTheme.typography.titleMedium)
+                    Text("Audio output engine", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Select the backend driver for playback.",
@@ -1057,7 +1057,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Period Size (Frames)", style = MaterialTheme.typography.titleMedium)
+                        Text("Period size (frames)", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "Controls capture latency and CPU load.",
@@ -1079,7 +1079,7 @@ fun SettingsScreen(
             
             if (showPeriodDialog) {
                 SelectionDialog(
-                    title = "Period Size (Frames)",
+                    title = "Period size (frames)",
                     options = options,
                     labels = labels,
                     selectedOption = state.periodSizeOption,
@@ -1111,7 +1111,7 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Keep ADB Enabled",
+                                text = "Keep ADB enabled",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1149,7 +1149,7 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Always Continue on Output Change",
+                                text = "Always continue on output change",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1178,7 +1178,7 @@ fun SettingsScreen(
                     contentColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("Reset to Defaults")
+                Text("Reset to defaults")
             }
         }
     }
@@ -1281,7 +1281,7 @@ fun AboutScreen() {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Kernel Compatibility",
+                            "Kernel compatibility",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -1315,7 +1315,7 @@ fun AboutScreen() {
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        "Libraries & Technologies",
+                        "Libraries & technologies",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -1399,7 +1399,7 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
             )
         },
         title = {
-            Text("Kernel Compatibility Notice")
+            Text("Kernel compatibility notice")
         },
         text = {
             Column {
