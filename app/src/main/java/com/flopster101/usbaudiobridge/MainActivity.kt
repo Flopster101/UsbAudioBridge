@@ -54,12 +54,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -109,6 +110,17 @@ class MainActivity : ComponentActivity() {
     
     // Mutable State Holder
     private var uiState by mutableStateOf(MainUiState())
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            startBridgeWithState()
+        } else {
+            appendLog("[App] Microphone permission denied. Input will fail.")
+            startBridgeWithState()
+        }
+    }
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -217,11 +229,11 @@ class MainActivity : ComponentActivity() {
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
         
         // Register Receivers
-        LocalBroadcastManager.getInstance(this).registerReceiver(logReceiver, IntentFilter(AudioService.ACTION_LOG))
-        LocalBroadcastManager.getInstance(this).registerReceiver(stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED))
-        LocalBroadcastManager.getInstance(this).registerReceiver(statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE))
-        LocalBroadcastManager.getInstance(this).registerReceiver(gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT))
-        LocalBroadcastManager.getInstance(this).registerReceiver(gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS))
+        ContextCompat.registerReceiver(this, logReceiver, IntentFilter(AudioService.ACTION_LOG), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         setContent {
             // Basic Material Theme wrapper
@@ -260,7 +272,7 @@ class MainActivity : ComponentActivity() {
                         } else {
                              val perm = android.Manifest.permission.RECORD_AUDIO
                              if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
-                                 requestPermissions(arrayOf(perm), 1001)
+                                 requestPermissionLauncher.launch(perm)
                              } else {
                                  startBridgeWithState()
                              }
@@ -354,11 +366,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(statsReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetResultReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetStatusReceiver)
+        unregisterReceiver(logReceiver)
+        unregisterReceiver(stateReceiver)
+        unregisterReceiver(statsReceiver)
+        unregisterReceiver(gadgetResultReceiver)
+        unregisterReceiver(gadgetStatusReceiver)
         if (uiState.isAppBound) unbindService(connection)
     }
 
@@ -373,17 +385,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1001) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startBridgeWithState()
-            } else {
-                appendLog("[App] Microphone permission denied. Input will fail.")
-                startBridgeWithState()
-            }
-        }
-    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -876,77 +878,117 @@ fun SettingsScreen(
 
         // Mic Source
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Microphone Source", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Select input preset. Affects processing (echo cancellation, noise suppression).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    
-                    val options = listOf(6, 1, 5, 7, 9, 10)
-                    val labels = listOf("Auto (VoiceRec)", "Mic", "Camcorder", "Voice Comm", "Unprocessed", "Performance")
-                    
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                         options.forEachIndexed { index, value ->
-                             FilterChip(
-                                 selected = state.micSourceOption == value,
-                                 onClick = { onMicSourceChange(value) },
-                                 label = { Text(labels[index]) }
-                             )
-                         }
+            var showMicDialog by remember { mutableStateOf(false) }
+            val options = listOf(6, 1, 5, 7, 9, 10)
+            val labels = listOf("Auto (VoiceRec)", "Mic", "Camcorder", "Voice Comm", "Unprocessed", "Performance")
+            
+            ElevatedCard(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { showMicDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Microphone Source", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Select input preset. Affects processing (echo cancellation, noise suppression).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                    
+                    val index = options.indexOf(state.micSourceOption)
+                    val label = if (index >= 0) labels[index] else "Unknown"
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
+            }
+            
+            if (showMicDialog) {
+                SelectionDialog(
+                    title = "Microphone Source",
+                    options = options,
+                    labels = labels,
+                    selectedOption = state.micSourceOption,
+                    onDismiss = { showMicDialog = false },
+                    onOptionSelected = { 
+                        onMicSourceChange(it)
+                        showMicDialog = false
+                    }
+                )
             }
         }
 
         // Sample Rate
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Sample Rate", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Controls capture frequency.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    
-                    val rates = listOf(22050, 32000, 44100, 48000, 88200, 96000, 192000)
-                    
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing
-                    ) {
-                        rates.forEach { rate ->
-                            FilterChip(
-                                selected = state.sampleRateOption == rate,
-                                onClick = { onSampleRateChange(rate) },
-                                label = { Text("$rate Hz") }
-                            )
-                        }
+            var showSampleRateDialog by remember { mutableStateOf(false) }
+            val rates = listOf(22050, 32000, 44100, 48000, 88200, 96000, 192000)
+            val labels = rates.map { "$it Hz" }
+
+            ElevatedCard(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { showSampleRateDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Sample Rate", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "48kHz is standard for Android. Higher rates increase CPU load and may require larger buffers.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     
-                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Changing this requires restarting/resetting the USB Gadget.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Higher sample rates (e.g. 96kHz) increase CPU load significantly. You may need to increase the Buffer Size to prevent audio overruns.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "${state.sampleRateOption} Hz",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp)
                     )
                 }
+            }
+
+            if (showSampleRateDialog) {
+                SelectionDialog(
+                    title = "Sample Rate",
+                    options = rates,
+                    labels = labels,
+                    selectedOption = state.sampleRateOption,
+                    onDismiss = { showSampleRateDialog = false },
+                    onOptionSelected = { 
+                        onSampleRateChange(it)
+                        showSampleRateDialog = false
+                    },
+                    headerContent = {
+                        Column {
+                            Text(
+                                text = "Changing this requires restarting/resetting the USB Gadget.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Higher sample rates (e.g. 96kHz) increase CPU load significantly. You may need to increase the Buffer Size to prevent audio overruns.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+                             HorizontalDivider()
+                             Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                )
             }
         }
 
@@ -1002,35 +1044,51 @@ fun SettingsScreen(
 
         // Period Size
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Period Size (Frames)", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Controls capture latency and CPU load.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    
-                    val options = listOf(0, 1024, 480, 240, 120, 64)
-                    val labels = listOf("Auto", "1024", "480", "240", "120", "64")
-                    
-                    // Simple FlowRow equivalent or Scrollable Row
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        options.forEachIndexed { index, value ->
-                            val isSelected = state.periodSizeOption == value
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { onPeriodSizeChange(value) },
-                                label = { Text(labels[index]) }
-                            )
-                        }
+            var showPeriodDialog by remember { mutableStateOf(false) }
+            val options = listOf(0, 1024, 480, 240, 120, 64)
+            val labels = listOf("Auto", "1024", "480", "240", "120", "64")
+            
+            ElevatedCard(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { showPeriodDialog = true }
+            ) {
+                 Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Period Size (Frames)", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Controls capture latency and CPU load.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                    
+                    val index = options.indexOf(state.periodSizeOption)
+                    val label = if (index >= 0) labels[index] else state.periodSizeOption.toString()
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
+            }
+            
+            if (showPeriodDialog) {
+                SelectionDialog(
+                    title = "Period Size (Frames)",
+                    options = options,
+                    labels = labels,
+                    selectedOption = state.periodSizeOption,
+                    onDismiss = { showPeriodDialog = false },
+                    onOptionSelected = {
+                        onPeriodSizeChange(it)
+                        showPeriodDialog = false
+                    }
+                )
             }
         }
         
@@ -1408,4 +1466,52 @@ fun StatusRow(label: String, value: String, valueColor: Color = MaterialTheme.co
             color = valueColor
         )
     }
+}
+
+@Composable
+fun <T> SelectionDialog(
+    title: String,
+    options: List<T>,
+    labels: List<String>,
+    selectedOption: T,
+    onDismiss: () -> Unit,
+    onOptionSelected: (T) -> Unit,
+    headerContent: @Composable (() -> Unit)? = null
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (headerContent != null) {
+                    headerContent()
+                }
+                options.forEachIndexed { index, option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOptionSelected(option) }
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = option == selectedOption,
+                            onClick = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = labels[index],
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

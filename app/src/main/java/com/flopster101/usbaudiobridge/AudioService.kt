@@ -14,7 +14,6 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -132,7 +131,8 @@ class AudioService : Service() {
         // Broadcast to Activity
         val intent = Intent(ACTION_LOG)
         intent.putExtra(EXTRA_MSG, msg)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     // Called from C++ JNI
@@ -174,7 +174,8 @@ class AudioService : Service() {
             putExtra(EXTRA_PERIOD, period)
             putExtra(EXTRA_BUFFER, buffer)
         }
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
         // Ensure state reflects streaming (in case we missed a transition or to refresh)
         if (lastNativeState != STATE_STREAMING) {
             onNativeState(STATE_STREAMING)
@@ -202,7 +203,8 @@ class AudioService : Service() {
         // Broadcast to UI that output disconnected
         val intent = Intent(ACTION_OUTPUT_DISCONNECT)
         intent.putExtra("autoRestart", autoRestart)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
         
         if (autoRestart) {
             // Auto-restart: stop and immediately restart with same parameters
@@ -365,7 +367,8 @@ class AudioService : Service() {
     private fun broadcastGadgetResult(success: Boolean) {
         val intent = Intent(ACTION_GADGET_RESULT)
         intent.putExtra("success", success)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
         // Also broadcast updated gadget status
         broadcastGadgetStatus()
     }
@@ -388,7 +391,8 @@ class AudioService : Service() {
                 putExtra(EXTRA_UDC_CONTROLLER, status.udcController)
                 putExtra(EXTRA_ACTIVE_FUNCTIONS, status.activeFunctions.joinToString(", ").ifEmpty { "--" })
             }
-            LocalBroadcastManager.getInstance(this@AudioService).sendBroadcast(intent)
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
         }
     }
 
@@ -468,7 +472,8 @@ class AudioService : Service() {
     private fun broadcastLog(msg: String) {
         val intent = Intent(ACTION_LOG)
         intent.putExtra(EXTRA_MSG, msg)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     private fun broadcastState(label: String, color: Long, activeDirections: Int = 0) {
@@ -477,7 +482,8 @@ class AudioService : Service() {
         intent.putExtra(EXTRA_STATE_LABEL, label)
         intent.putExtra(EXTRA_STATE_COLOR, color)
         intent.putExtra(EXTRA_ACTIVE_DIRECTIONS, activeDirections)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     private fun createNotificationChannel() {
