@@ -19,6 +19,10 @@ class SettingsRepository(context: Context) {
     
     fun saveKeepAdb(enabled: Boolean) = prefs.edit().putBoolean("keep_adb", enabled).apply()
     fun getKeepAdb(): Boolean = prefs.getBoolean("keep_adb", false)
+
+    // If true: auto-restart stream on output change. If false: stop capture when output disconnects.
+    fun saveAutoRestartOnOutputChange(enabled: Boolean) = prefs.edit().putBoolean("auto_restart_output", enabled).apply()
+    fun getAutoRestartOnOutputChange(): Boolean = prefs.getBoolean("auto_restart_output", false)
     
     fun saveOriginalIdentity(manufacturer: String, product: String) {
         prefs.edit()

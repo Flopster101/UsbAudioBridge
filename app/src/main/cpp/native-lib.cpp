@@ -153,6 +153,33 @@ void reportErrorToJava(const char *fmt, ...) {
   }
 }
 
+// Helper to report output disconnect to Java (for graceful handling)
+void reportOutputDisconnectToJava() {
+  if (!javaVM || !serviceObj) return;
+
+  JNIEnv *env;
+  bool attached = false;
+  int getEnvStat = javaVM->GetEnv((void **)&env, JNI_VERSION_1_6);
+
+  if (getEnvStat == JNI_EDETACHED) {
+    if (javaVM->AttachCurrentThread(&env, nullptr) != 0) return;
+    attached = true;
+  } else if (getEnvStat != JNI_OK) {
+    return;
+  }
+
+  jclass cls = env->GetObjectClass(serviceObj);
+  jmethodID mid = env->GetMethodID(cls, "onOutputDisconnect", "()V");
+  if (mid) {
+    env->CallVoidMethod(serviceObj, mid);
+  }
+  env->DeleteLocalRef(cls);
+
+  if (attached) {
+    javaVM->DetachCurrentThread();
+  }
+}
+
 // Helper to report State Code (0=Stopped, 1=Connecting, 2=Waiting, 3=Streaming, 4=Idling, 5=Error)
 void reportStateToJava(int stateCode) {
   if (!javaVM || !serviceObj) return;
@@ -442,10 +469,22 @@ public:
 };
 
 // --- AAudio Engine ---
+// Forward declaration for error callback
+static void aaudioErrorCallback(AAudioStream *stream, void *userData, aaudio_result_t error);
+
 class AAudioEngine : public AudioEngine {
     AAudioStream* stream = nullptr;
     int32_t burstFrames = 0;
+    std::atomic<bool> disconnected{false};
+    
 public:
+    bool isDisconnected() const { return disconnected.load(); }
+    
+    void setDisconnected() { 
+        disconnected.store(true);
+        LOGD("[Native] AAudio stream marked as disconnected");
+    }
+
     bool open(int rate, int channelCount) override {
         AAudioStreamBuilder *builder;
         AAudio_createStreamBuilder(&builder);
@@ -454,6 +493,7 @@ public:
         AAudioStreamBuilder_setSampleRate(builder, rate);
         AAudioStreamBuilder_setChannelCount(builder, channelCount);
         AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
+        AAudioStreamBuilder_setErrorCallback(builder, aaudioErrorCallback, this);
 
         if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {
             LOGE("[Native] AAudio open failed");
@@ -489,6 +529,20 @@ public:
     
     int getBurstFrames() override { return burstFrames; }
 };
+
+// AAudio error callback implementation
+static void aaudioErrorCallback(AAudioStream *stream, void *userData, aaudio_result_t error) {
+    AAudioEngine* engine = static_cast<AAudioEngine*>(userData);
+    if (error == AAUDIO_ERROR_DISCONNECTED) {
+        LOGD("[Native] AAudio error callback: Output disconnected");
+        if (engine) {
+            engine->setDisconnected();
+        }
+        reportOutputDisconnectToJava();
+    } else {
+        LOGE("[Native] AAudio error callback: error %d", error);
+    }
+}
 
 // --- OpenSL ES Engine ---
 class OpenSLEngine : public AudioEngine {

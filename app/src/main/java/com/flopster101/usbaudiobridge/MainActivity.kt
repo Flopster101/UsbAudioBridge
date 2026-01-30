@@ -73,6 +73,7 @@ data class MainUiState(
     val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL, 2 = AudioTrack
     val sampleRateOption: Int = 48000,
     val keepAdbOption: Boolean = false,
+    val autoRestartOnOutputChange: Boolean = false,
 
     // Status
     val serviceState: String = "Idle",
@@ -190,7 +191,8 @@ class MainActivity : ComponentActivity() {
             periodSizeOption = settingsRepo.getPeriodSize(),
             engineTypeOption = settingsRepo.getEngineType(),
             sampleRateOption = settingsRepo.getSampleRate(),
-            keepAdbOption = settingsRepo.getKeepAdb()
+            keepAdbOption = settingsRepo.getKeepAdb(),
+            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange()
         )
         
         // Start Service
@@ -251,6 +253,10 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(keepAdbOption = it)
                         settingsRepo.saveKeepAdb(it)
                     },
+                    onAutoRestartChange = {
+                        uiState = uiState.copy(autoRestartOnOutputChange = it)
+                        settingsRepo.saveAutoRestartOnOutputChange(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -258,7 +264,8 @@ class MainActivity : ComponentActivity() {
                             periodSizeOption = settingsRepo.getPeriodSize(),
                             engineTypeOption = settingsRepo.getEngineType(),
                             sampleRateOption = settingsRepo.getSampleRate(),
-                            keepAdbOption = settingsRepo.getKeepAdb()
+                            keepAdbOption = settingsRepo.getKeepAdb(),
+                            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -323,6 +330,7 @@ fun AppNavigation(
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
+    onAutoRestartChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -362,6 +370,7 @@ fun AppNavigation(
                     onEngineTypeChange = onEngineTypeChange,
                     onSampleRateChange = onSampleRateChange,
                     onKeepAdbChange = onKeepAdbChange,
+                    onAutoRestartChange = onAutoRestartChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -620,6 +629,7 @@ fun SettingsScreen(
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
+    onAutoRestartChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -831,6 +841,38 @@ fun SettingsScreen(
                         Switch(
                             checked = state.keepAdbOption,
                             onCheckedChange = onKeepAdbChange
+                        )
+                    }
+                }
+            }
+        }
+
+        // Audio Behavior
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Audio Behavior", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Always Continue on Output Change",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Keep playing when any output change occurs, including when headphones or Bluetooth are disconnected. When disabled, behaves like music apps (stops on disconnect).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.autoRestartOnOutputChange,
+                            onCheckedChange = onAutoRestartChange
                         )
                     }
                 }

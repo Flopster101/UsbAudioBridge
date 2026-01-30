@@ -4,8 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import android.os.Binder
 import android.os.IBinder
 import android.os.PowerManager
@@ -28,6 +31,7 @@ class AudioService : Service() {
         const val ACTION_STATS_UPDATE = "com.flopster101.usbaudiobridge.STATS_UPDATE"
         const val ACTION_GADGET_RESULT = "com.flopster101.usbaudiobridge.GADGET_RESULT"
         const val ACTION_GADGET_STATUS = "com.flopster101.usbaudiobridge.GADGET_STATUS"
+        const val ACTION_OUTPUT_DISCONNECT = "com.flopster101.usbaudiobridge.OUTPUT_DISCONNECT"
         const val EXTRA_MSG = "msg"
         const val EXTRA_UDC_CONTROLLER = "udcController"
         const val EXTRA_ACTIVE_FUNCTIONS = "activeFunctions"
@@ -181,6 +185,46 @@ class AudioService : Service() {
         lastNativeState = stateCode
         updateUiState()
     }
+    
+    // Called from C++ JNI when audio output is disconnected (e.g., headphones unplugged)
+    fun onOutputDisconnect() {
+        broadcastLog("[App] Audio output disconnected (native callback)")
+        handleOutputDisconnect()
+    }
+    
+    // Handle audio output disconnect - either restart or stop based on settings
+    private fun handleOutputDisconnect() {
+        if (!isBridgeRunning) return
+        
+        val autoRestart = settingsRepo.getAutoRestartOnOutputChange()
+        
+        // Broadcast to UI that output disconnected
+        val intent = Intent(ACTION_OUTPUT_DISCONNECT)
+        intent.putExtra("autoRestart", autoRestart)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        
+        if (autoRestart) {
+            // Auto-restart: stop and immediately restart with same parameters
+            broadcastLog("[App] Output changed - restarting stream...")
+            serviceScope.launch {
+                // Stop current stream
+                stopAudioBridge()
+                isBridgeRunning = false
+                
+                // Brief delay to let audio system settle
+                delay(300)
+                
+                // Restart with saved parameters
+                if (lastBufferSize > 0) {
+                    startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate)
+                }
+            }
+        } else {
+            // Stop capture (like music apps do when headphones are unplugged)
+            broadcastLog("[App] Output disconnected - stopping capture")
+            stopAudioOnly()
+        }
+    }
 
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
@@ -190,10 +234,25 @@ class AudioService : Service() {
     private lateinit var settingsRepo: SettingsRepository
     private var lastNativeState = STATE_STOPPED
     private var lastErrorMsg = ""
+    
+    // Store bridge parameters for restart capability
+    private var lastBufferSize = 0
+    private var lastPeriodSize = 0
+    private var lastEngineType = 0
+    private var lastSampleRate = 48000
 
-    private val usbReceiver = object : android.content.BroadcastReceiver() {
+    private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             updateUiState()
+        }
+    }
+    
+    // Receiver for audio output changes (headphones unplugged, etc.)
+    private val audioNoisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                handleOutputDisconnect()
+            }
         }
     }
 
@@ -208,11 +267,14 @@ class AudioService : Service() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "UsbAudioMonitor::BridgeLock")
         
-        val filter = android.content.IntentFilter().apply {
+        val filter = IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         }
         registerReceiver(usbReceiver, filter)
+        
+        // Register for audio becoming noisy (headphones unplugged)
+        registerReceiver(audioNoisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -230,6 +292,7 @@ class AudioService : Service() {
         super.onDestroy()
         serviceJob.cancel()
         unregisterReceiver(usbReceiver)
+        unregisterReceiver(audioNoisyReceiver)
         createNotificationChannel()
     }
 
@@ -347,6 +410,12 @@ class AudioService : Service() {
 
     fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000) {
         if (isBridgeRunning) return
+        
+        // Save parameters for potential auto-restart on output change
+        lastBufferSize = bufferSize
+        lastPeriodSize = periodSize
+        lastEngineType = engineType
+        lastSampleRate = sampleRate
         
         serviceScope.launch {
             broadcastLog("[App] Scanning for audio card...")
