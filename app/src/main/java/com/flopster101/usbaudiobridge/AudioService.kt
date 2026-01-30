@@ -298,14 +298,18 @@ class AudioService : Service() {
         registerReceiver(audioNoisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
     }
 
+    private fun shouldBeForeground(): Boolean {
+        return settingsRepo.getNotificationEnabled()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "TOGGLE_CAPTURE") {
             toggleCapture()
             return START_NOT_STICKY
         }
         
-        // Only start as foreground service if notifications are enabled
-        if (settingsRepo.getNotificationEnabled()) {
+        // Start foreground if needed
+        if (shouldBeForeground()) {
             val notification = createNotification("Inactive", false)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -472,12 +476,12 @@ class AudioService : Service() {
 
             broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections, MicSrc: $micSource)...")
             
-            // Update foreground service type to include microphone for Android 14+ (only if notifications enabled)
-            if (settingsRepo.getNotificationEnabled()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val notification = createNotification("Active", true)
-                    startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-                }
+            // Ensure we're foreground for active capture
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val notification = createNotification("Active", true)
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(1, createNotification("Active", true))
             }
             
             startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections, micSource)
@@ -502,12 +506,16 @@ class AudioService : Service() {
             lastErrorMsg = ""
             updateNotification("Inactive", false)
             
-            // Revert foreground service type to mediaPlayback only (only if notifications enabled)
+            // Update foreground state based on notification setting
             if (settingsRepo.getNotificationEnabled()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val notification = createNotification("Inactive", false)
                     startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                } else {
+                    startForeground(1, createNotification("Inactive", false))
                 }
+            } else {
+                stopForeground(true)
             }
             
             updateUiState()
@@ -612,12 +620,18 @@ class AudioService : Service() {
         val bridgeText = if (isBridgeRunning) " - ${getBridgeText(lastActiveDirections)}" else ""
         val fullText = if (isBridgeRunning) "Active ($statusText)$bridgeText" else statusText
         
-        if (settingsRepo.getNotificationEnabled()) {
-            // Show/update notification
-            getSystemService(NotificationManager::class.java).notify(1, createNotification(fullText, isBridgeRunning))
+        if (shouldBeForeground()) {
+            // Start or update foreground with notification
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val serviceType = if (isBridgeRunning) 
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                else ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                startForeground(1, createNotification(fullText, isBridgeRunning), serviceType)
+            } else {
+                startForeground(1, createNotification(fullText, isBridgeRunning))
+            }
         } else {
-            // Cancel notification and stop foreground service if running
-            getSystemService(NotificationManager::class.java).cancel(1)
+            // Stop foreground and remove notification
             stopForeground(true)
         }
     }

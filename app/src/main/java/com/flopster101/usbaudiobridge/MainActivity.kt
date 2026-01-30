@@ -1226,7 +1226,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Show notification with start/stop controls. When disabled, no notification is shown but background operation may be limited.",
+                                text = "Enable persistent notification for remote control",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
