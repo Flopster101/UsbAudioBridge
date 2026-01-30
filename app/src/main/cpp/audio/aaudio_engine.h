@@ -28,8 +28,10 @@ public:
 // --- AAudio Input Engine ---
 class AAudioInputEngine : public AudioInputEngine {
     AAudioStream* stream = nullptr;
+    int inputPreset = 6;
 
 public:
+    void setInputPreset(int preset) override { inputPreset = preset; }
     bool open(int rate, int channelCount) override;
     void start() override;
     size_t read(uint8_t* data, size_t sizeBytes) override;

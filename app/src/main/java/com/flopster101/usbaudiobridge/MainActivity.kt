@@ -83,6 +83,7 @@ data class MainUiState(
     val keepAdbOption: Boolean = false,
     val autoRestartOnOutputChange: Boolean = false,
     val activeDirectionsOption: Int = 1, // 1=Speaker, 2=Mic, 3=Both
+    val micSourceOption: Int = 6, // 6=VoiceRec (Default/Auto)
     val showKernelNotice: Boolean = false,
 
     // Status
@@ -206,6 +207,7 @@ class MainActivity : ComponentActivity() {
             keepAdbOption = settingsRepo.getKeepAdb(),
             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
             activeDirectionsOption = settingsRepo.getActiveDirections(),
+            micSourceOption = settingsRepo.getMicSource(),
             showKernelNotice = settingsRepo.shouldShowKernelNotice()
         )
         
@@ -292,6 +294,10 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(activeDirectionsOption = it)
                         settingsRepo.saveActiveDirections(it)
                     },
+                    onMicSourceChange = {
+                         uiState = uiState.copy(micSourceOption = it)
+                         settingsRepo.saveMicSource(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -302,7 +308,8 @@ class MainActivity : ComponentActivity() {
                             keepAdbOption = settingsRepo.getKeepAdb(),
 
                             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
-                            activeDirectionsOption = settingsRepo.getActiveDirections()
+                            activeDirectionsOption = settingsRepo.getActiveDirections(),
+                            micSourceOption = settingsRepo.getMicSource()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -361,7 +368,8 @@ class MainActivity : ComponentActivity() {
              uiState.periodSizeOption, 
              uiState.engineTypeOption, 
              uiState.sampleRateOption,
-             uiState.activeDirectionsOption
+             uiState.activeDirectionsOption,
+             uiState.micSourceOption
         )
     }
 
@@ -391,6 +399,7 @@ fun AppNavigation(
     onKeepAdbChange: (Boolean) -> Unit,
     onAutoRestartChange: (Boolean) -> Unit,
     onActiveDirectionsChange: (Int) -> Unit,
+    onMicSourceChange: (Int) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -436,6 +445,7 @@ fun AppNavigation(
                     onKeepAdbChange = onKeepAdbChange,
                     onAutoRestartChange = onAutoRestartChange,
                     onActiveDirectionsChange = onActiveDirectionsChange,
+                    onMicSourceChange = onMicSourceChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -756,6 +766,7 @@ fun SettingsScreen(
     onKeepAdbChange: (Boolean) -> Unit,
     onAutoRestartChange: (Boolean) -> Unit,
     onActiveDirectionsChange: (Int) -> Unit,
+    onMicSourceChange: (Int) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -858,6 +869,38 @@ fun SettingsScreen(
                                 if (isMic) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                             }
                         )
+                    }
+                }
+            }
+        }
+
+        // Mic Source
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Microphone Source", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Select input preset. Affects processing (echo cancellation, noise suppression).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    
+                    val options = listOf(6, 1, 5, 7, 9, 10)
+                    val labels = listOf("Auto (VoiceRec)", "Mic", "Camcorder", "Voice Comm", "Unprocessed", "Performance")
+                    
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                         options.forEachIndexed { index, value ->
+                             FilterChip(
+                                 selected = state.micSourceOption == value,
+                                 onClick = { onMicSourceChange(value) },
+                                 label = { Text(labels[index]) }
+                             )
+                         }
                     }
                 }
             }

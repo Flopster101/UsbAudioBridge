@@ -28,6 +28,11 @@ class SettingsRepository(context: Context) {
     fun saveActiveDirections(mask: Int) = prefs.edit().putInt("active_directions", mask).apply()
     fun getActiveDirections(): Int = prefs.getInt("active_directions", 1)
 
+    // Mic Source (Preset)
+    // 0=Unspecified/Auto, 1=Generic, 5=Camcorder, 6=VoiceRec, 7=VoiceComm, 9=Unprocessed, 10=Performance
+    fun saveMicSource(source: Int) = prefs.edit().putInt("mic_source", source).apply()
+    fun getMicSource(): Int = prefs.getInt("mic_source", 6) // Default to Voice Recognition (6) for best results usually
+
     // Kernel compatibility notice
     fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
     fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()

@@ -15,7 +15,7 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
     JNIEnv *env, jobject thiz, jint card, jint device, jint bufferSizeFrames,
     jint periodSizeFrames, jint engineType, jint sampleRate,
-    jint activeDirections) {
+    jint activeDirections, jint micSource) {
   // Wait for previous instance to clean up
   int safety = 0;
   // Increase timeout to 3s (300 * 10ms) to allow for 1s sleep in captureLoop +
@@ -36,7 +36,7 @@ Java_com_flopster101_usbaudiobridge_AudioService_startAudioBridge(
   isFinished = false;
   bridgeThread =
       std::thread(bridgeTask, card, device, bufferSizeFrames, periodSizeFrames,
-                  engineType, sampleRate, activeDirections);
+                  engineType, sampleRate, activeDirections, micSource);
   bridgeThread.detach();
   return true;
 }

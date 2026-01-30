@@ -70,6 +70,7 @@ bool AAudioInputEngine::open(int rate, int channelCount) {
     AAudioStreamBuilder_setChannelCount(builder, channelCount);
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
     AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_INPUT);
+    AAudioStreamBuilder_setInputPreset(builder, (aaudio_input_preset_t)inputPreset);
     // Error callback handling for disconnect? For now simple.
 
     if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {

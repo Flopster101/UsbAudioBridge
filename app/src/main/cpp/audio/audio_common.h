@@ -25,6 +25,7 @@ public:
     virtual size_t read(uint8_t* data, size_t sizeBytes) = 0;
     virtual void stop() = 0;
     virtual void close() = 0;
+    virtual void setInputPreset(int preset) {}
 };
 
 #endif  // AUDIO_COMMON_H

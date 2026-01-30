@@ -166,7 +166,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
 // --- Playback Loop (Mic -> Gadget) ---
 // Reads from Android Mic (InputEngine), writes to USB Gadget (PCM_OUT)
 void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
-                  int engineType) {
+                  int engineType, int micSource) {
   setHighPriority();
   LOGD("[Native] Starting playback loop (Mic -> Gadget)...");
 
@@ -182,6 +182,7 @@ void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
   // Currently only supporting AAudio for Input for cleanliness, or fallback?
   // Use AAudio for input.
   inputEngine = std::make_unique<AAudioInputEngine>();
+  inputEngine->setInputPreset(micSource);
 
   if (!inputEngine->open(config.rate, 2)) {
     LOGE("[Native] Failed to open Mic Input Engine");
@@ -229,7 +230,7 @@ void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
 // --- Bridge Logic ---
 void bridgeTask(int card, int device, int bufferSizeFrames,
                 int periodSizeFrames, int engineType, int sampleRate,
-                int activeDirections) {
+                int activeDirections, int micSource) {
   setHighPriority();
 
   bool enableSpeaker = (activeDirections & 1) != 0;
@@ -242,7 +243,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   if (enableMic) {
     // Start Mic -> Gadget pipe in separate thread
     // We assume device 0 for both directions as is standard for UAC2 gadget
-    micThread = std::thread(playbackLoop, card, device, sampleRate, engineType);
+    micThread = std::thread(playbackLoop, card, device, sampleRate, engineType, micSource);
   }
 
   if (!enableSpeaker) {

@@ -124,7 +124,7 @@ class AudioService : Service() {
         }
     }
 
-    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int, activeDirections: Int)
+    external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int, activeDirections: Int, micSource: Int)
     external fun stopAudioBridge()
 
     // Called from C++ JNI
@@ -217,7 +217,7 @@ class AudioService : Service() {
                 
                 // Restart with saved parameters
                 if (lastBufferSize > 0) {
-                    startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate, lastActiveDirections)
+                    startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate, lastActiveDirections, lastMicSource)
                 }
             }
         } else {
@@ -243,6 +243,7 @@ class AudioService : Service() {
 
     private var lastSampleRate = 48000
     private var lastActiveDirections = 1
+    private var lastMicSource = 6
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -411,7 +412,7 @@ class AudioService : Service() {
         }
     }
 
-    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000, activeDirections: Int = 1) {
+    fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000, activeDirections: Int = 1, micSource: Int = 6) {
         if (isBridgeRunning) return
         
         // Save parameters for potential auto-restart on output change
@@ -420,6 +421,7 @@ class AudioService : Service() {
         lastEngineType = engineType
         lastSampleRate = sampleRate
         lastActiveDirections = activeDirections
+        lastMicSource = micSource
         
         serviceScope.launch {
             broadcastLog("[App] Scanning for audio card...")
@@ -430,8 +432,8 @@ class AudioService : Service() {
                 return@launch
             }
 
-            broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections)...")
-            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections)
+            broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections, MicSrc: $micSource)...")
+            startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections, micSource)
             
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING

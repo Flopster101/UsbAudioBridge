@@ -13,6 +13,6 @@ extern std::thread bridgeThread;
 
 // Main Bridge Task
 void bridgeTask(int card, int device, int bufferSizeFrames, int periodSizeFrames, int engineType,
-                int sampleRate, int activeDirections);
+                int sampleRate, int activeDirections, int micSource);
 
 #endif  // BRIDGE_H
