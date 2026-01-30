@@ -23,6 +23,10 @@ class SettingsRepository(context: Context) {
     // If true: auto-restart stream on output change. If false: stop capture when output disconnects.
     fun saveAutoRestartOnOutputChange(enabled: Boolean) = prefs.edit().putBoolean("auto_restart_output", enabled).apply()
     fun getAutoRestartOnOutputChange(): Boolean = prefs.getBoolean("auto_restart_output", false)
+
+    // Kernel compatibility notice
+    fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
+    fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()
     
     fun saveOriginalIdentity(manufacturer: String, product: String) {
         prefs.edit()

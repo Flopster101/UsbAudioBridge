@@ -19,8 +19,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,6 +77,7 @@ data class MainUiState(
     val sampleRateOption: Int = 48000,
     val keepAdbOption: Boolean = false,
     val autoRestartOnOutputChange: Boolean = false,
+    val showKernelNotice: Boolean = false,
 
     // Status
     val serviceState: String = "Idle",
@@ -192,7 +196,8 @@ class MainActivity : ComponentActivity() {
             engineTypeOption = settingsRepo.getEngineType(),
             sampleRateOption = settingsRepo.getSampleRate(),
             keepAdbOption = settingsRepo.getKeepAdb(),
-            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange()
+            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
+            showKernelNotice = settingsRepo.shouldShowKernelNotice()
         )
         
         // Start Service
@@ -213,6 +218,18 @@ class MainActivity : ComponentActivity() {
                 colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) 
                     dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
             ) {
+                // First-run kernel notice dialog
+                if (uiState.showKernelNotice) {
+                    KernelNoticeDialog(
+                        onDismiss = { dontShowAgain ->
+                            if (dontShowAgain) {
+                                settingsRepo.setKernelNoticeDismissed()
+                            }
+                            uiState = uiState.copy(showKernelNotice = false)
+                        }
+                    )
+                }
+                
                 AppNavigation(
                     state = uiState,
                     onToggleGadget = { enable ->
@@ -336,14 +353,18 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
-                title = { Text("USB Audio Bridge") },
-                scrollBehavior = scrollBehavior
-            )
+            if (currentRoute != "about") {
+                LargeTopAppBar(
+                    title = { Text("USB Audio Bridge") },
+                    scrollBehavior = scrollBehavior
+                )
+            }
         },
         bottomBar = {
             BottomNavBar(navController = navController)
@@ -896,23 +917,269 @@ fun SettingsScreen(
 }
 
 @Composable
-    fun AboutScreen() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+fun AboutScreen() {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(16.dp))
-        Text("About UsbAudioBridge", style = MaterialTheme.typography.headlineMedium)
-        Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_HASH})", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(8.dp))
-        Text("A simple tool to bridge USB audio gadgets with AAudio.", 
-             style = MaterialTheme.typography.bodyMedium,
-             color = MaterialTheme.colorScheme.onSurfaceVariant,
-             modifier = Modifier.padding(32.dp),
-             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        // Header
+        item {
+            Spacer(Modifier.height(32.dp))
+            
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(96.dp)
+            ) {
+                Icon(
+                    Icons.Default.Usb,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxSize(),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Text(
+                "USB Audio Bridge",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Text(
+                "Version ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Text(
+                "Build ${BuildConfig.GIT_HASH}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        // Description Card
+        item {
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "Transform your rooted Android device into a USB sound card for any computer or host device.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Text(
+                        "Uses the Linux kernel's USB Gadget subsystem to expose a UAC2 (USB Audio Class 2.0) device, capturing audio from the host and playing it through your phone's speakers or connected audio devices.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        
+        // Kernel Compatibility Notice
+        item {
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Kernel Compatibility",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Text(
+                        "Devices with kernels older than Linux 5.10 may require a custom kernel build with CONFIG_USB_CONFIGFS_F_UAC2=y enabled.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Text(
+                        "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). If the app fails to enable the gadget, this is likely the cause.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+        
+        // Libraries Used
+        item {
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        "Libraries & Technologies",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
+                    AboutLibraryRow("TinyALSA", "Lightweight ALSA library for PCM capture")
+                    AboutLibraryRow("AAudio", "Android's high-performance audio API")
+                    AboutLibraryRow("OpenSL ES", "Cross-platform audio API for embedded systems")
+                    AboutLibraryRow("AudioTrack", "Android's legacy audio playback API")
+                    AboutLibraryRow("Linux USB Gadget", "Kernel subsystem for USB device emulation")
+                }
+            }
+        }
+        
+        // License & Copyright
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Licensed under GNU General Public License v3.0",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "© 2026 Flopster101",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        // Bottom padding
+        item {
+            Spacer(Modifier.height(32.dp))
+        }
     }
+}
+
+@Composable
+private fun AboutLibraryRow(name: String, description: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            "•",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.width(16.dp)
+        )
+        Column {
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+    
+    AlertDialog(
+        onDismissRequest = { onDismiss(dontShowAgain) },
+        icon = {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        title = {
+            Text("Kernel Compatibility Notice")
+        },
+        text = {
+            Column {
+                Text(
+                    "This app requires USB Gadget UAC2 support in your device's kernel.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    "Devices with kernels older than Linux 5.10 may need a custom kernel build with CONFIG_USB_CONFIGFS_F_UAC2=y enabled.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it },
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Don't show again",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onDismiss(dontShowAgain) }) {
+                Text("Dismiss")
+            }
+        }
+    )
 }
 
 @Composable
