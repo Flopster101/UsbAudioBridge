@@ -3,6 +3,7 @@ package com.flopster101.usbaudiobridge
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -187,14 +188,18 @@ class AudioService : Service() {
     // Called from C++ JNI
     fun onNativeState(stateCode: Int) {
         lastNativeState = stateCode
-        when (stateCode) {
-            STATE_STREAMING -> updateNotification("Streaming audio")
-            STATE_CONNECTING -> updateNotification("Connecting...")
-            STATE_WAITING -> updateNotification("Waiting for host")
-            STATE_IDLING -> updateNotification("Idle")
-            STATE_ERROR -> updateNotification("Error")
-            else -> updateNotification("Service Ready")
+        val isRunning = isBridgeRunning
+        val statusText = when (stateCode) {
+            STATE_STREAMING -> "Streaming"
+            STATE_CONNECTING -> "Connecting"
+            STATE_WAITING -> "Waiting for host"
+            STATE_IDLING -> "Idle"
+            STATE_ERROR -> "Error"
+            else -> "Inactive"
         }
+        val bridgeText = if (isRunning) " - ${getBridgeText(lastActiveDirections)}" else ""
+        val fullText = if (isRunning) "Active ($statusText)$bridgeText" else statusText
+        updateNotification(fullText, isRunning)
         updateUiState()
     }
     
@@ -294,7 +299,12 @@ class AudioService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = createNotification("Service Ready")
+        if (intent?.action == "TOGGLE_CAPTURE") {
+            toggleCapture()
+            return START_NOT_STICKY
+        }
+        
+        val notification = createNotification("Inactive", false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else {
@@ -314,6 +324,13 @@ class AudioService : Service() {
         unregisterReceiver(usbReceiver)
         unregisterReceiver(audioNoisyReceiver)
         createNotificationChannel()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (!isBridgeRunning) {
+            stopSelf()
+        }
     }
 
     private fun checkUsbConnected(): Boolean {
@@ -454,7 +471,7 @@ class AudioService : Service() {
             
             // Update foreground service type to include microphone for Android 14+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val notification = createNotification("Monitoring Active")
+                val notification = createNotification("Active", true)
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             }
             
@@ -463,7 +480,7 @@ class AudioService : Service() {
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING
             lastErrorMsg = ""
-            updateNotification("Monitoring Active")
+            updateNotification("Active", true)
             updateUiState()
         }
     }
@@ -478,11 +495,11 @@ class AudioService : Service() {
             isBridgeRunning = false
             lastNativeState = STATE_STOPPED
             lastErrorMsg = ""
-            updateNotification("Monitoring Stopped")
+            updateNotification("Inactive", false)
             
             // Revert foreground service type to mediaPlayback only
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val notification = createNotification("Monitoring Stopped")
+                val notification = createNotification("Inactive", false)
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             }
             
@@ -494,6 +511,30 @@ class AudioService : Service() {
              UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
              broadcastGadgetResult(false)  // Notify UI that gadget is now disabled
              stopSelf()
+        }
+    }
+
+    fun toggleCapture() {
+        if (isBridgeRunning) {
+            stopBridge()
+        } else {
+            // Start with last params or defaults
+            val bufferSize = if (lastBufferSize > 0) lastBufferSize else 1024
+            val periodSize = if (lastPeriodSize > 0) lastPeriodSize else 0
+            val engineType = lastEngineType
+            val sampleRate = if (lastSampleRate > 0) lastSampleRate else 48000
+            val activeDirections = if (lastActiveDirections > 0) lastActiveDirections else 1
+            val micSource = lastMicSource
+            startBridge(bufferSize, periodSize, engineType, sampleRate, activeDirections, micSource)
+        }
+    }
+
+    private fun getBridgeText(directions: Int): String {
+        return when (directions) {
+            1 -> "Speaker"
+            2 -> "Mic"
+            3 -> "Mic + Speaker"
+            else -> ""
         }
     }
     
@@ -521,17 +562,24 @@ class AudioService : Service() {
         }
     }
 
-    private fun createNotification(text: String): Notification {
+    private fun createNotification(text: String, isRunning: Boolean = false): Notification {
+        val toggleIntent = PendingIntent.getService(this, 0, Intent(this, AudioService::class.java).setAction("TOGGLE_CAPTURE"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val contentIntent = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val actionIcon = if (isRunning) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+        val actionTitle = if (isRunning) "Stop Capture" else "Start Capture"
+        
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("USB Audio Monitor")
+            .setContentTitle("Bridge status")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_usb)
+            .setContentIntent(contentIntent)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .addAction(actionIcon, actionTitle, toggleIntent)
             .build()
     }
 
-    private fun updateNotification(text: String) {
-        getSystemService(NotificationManager::class.java).notify(1, createNotification(text))
+    private fun updateNotification(text: String, isRunning: Boolean = false) {
+        getSystemService(NotificationManager::class.java).notify(1, createNotification(text, isRunning))
     }
 }

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -205,10 +206,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startServiceAndBind() {
+        // Start Service
+        val intent = Intent(this, AudioService::class.java)
+        startService(intent)
+        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         settingsRepo = SettingsRepository(this)
         // Load settings
         uiState = uiState.copy(
@@ -222,11 +230,17 @@ class MainActivity : ComponentActivity() {
             micSourceOption = settingsRepo.getMicSource(),
             showKernelNotice = settingsRepo.shouldShowKernelNotice()
         )
-        
-        // Start Service
-        val intent = Intent(this, AudioService::class.java)
-        startService(intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+
+        // Request notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
+            } else {
+                startServiceAndBind()
+            }
+        } else {
+            startServiceAndBind()
+        }
         
         // Register Receivers
         ContextCompat.registerReceiver(this, logReceiver, IntentFilter(AudioService.ACTION_LOG), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -234,6 +248,8 @@ class MainActivity : ComponentActivity() {
         ContextCompat.registerReceiver(this, statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS), ContextCompat.RECEIVER_NOT_EXPORTED)
+
+        startServiceAndBind()
 
         setContent {
             // Basic Material Theme wrapper
@@ -362,6 +378,13 @@ class MainActivity : ComponentActivity() {
             }
         }
         uiState = uiState.copy(logText = currentText)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startServiceAndBind()
+        }
     }
 
     override fun onDestroy() {
