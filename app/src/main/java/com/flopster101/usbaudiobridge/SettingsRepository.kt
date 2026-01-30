@@ -51,6 +51,11 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
+    // Persist stopped HAL service name to restore it later (even after app kill)
+    fun saveStoppedHalService(serviceName: String) = prefs.edit().putString("stopped_hal_service", serviceName).apply()
+    fun getStoppedHalService(): String? = prefs.getString("stopped_hal_service", null)
+    fun clearStoppedHalService() = prefs.edit().remove("stopped_hal_service").apply()
+
     fun resetDefaults() {
         prefs.edit().clear().apply()
     }

@@ -46,6 +46,52 @@ object UsbGadgetManager {
             false
         }
     }
+
+    private suspend fun findRunningUsbHalService(): String? = withContext(Dispatchers.IO) {
+        val candidates = listOf(
+            "vendor.usb-gadget-hal-1-0",
+            "android.hardware.usb.gadget-service.samsung",
+            "vendor.usb-hal-1-0",
+            "vendor.usb-gadget-hal",
+            "usbgadget-hal-1-0"
+        )
+        
+        for (name in candidates) {
+            try {
+                val p = Runtime.getRuntime().exec("getprop init.svc.$name")
+                val status = p.inputStream.bufferedReader().readText().trim()
+                if (status == "running" || status == "restarting") {
+                    return@withContext name
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+        return@withContext null
+    }
+
+    private suspend fun stopUsbHal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository?) {
+        val serviceName = findRunningUsbHalService()
+        if (serviceName != null) {
+            logCallback("[Gadget] Stopping conflicting USB HAL service: $serviceName")
+            // Use setprop ctl.stop to stop the service
+            if (runRootCommands(listOf("setprop ctl.stop $serviceName"), {})) {
+                settingsRepo?.saveStoppedHalService(serviceName)
+                Thread.sleep(500) // Give it time to stop and release resources
+            } else {
+                logCallback("[Gadget] Failed to stop service $serviceName")
+            }
+        }
+    }
+
+    private suspend fun startUsbHal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository?) {
+        val serviceName = settingsRepo?.getStoppedHalService()
+        if (serviceName != null) {
+            logCallback("[Gadget] Restarting USB HAL service: $serviceName")
+            runRootCommands(listOf("setprop ctl.start $serviceName"), {})
+            settingsRepo.clearStoppedHalService()
+        }
+    }
     
     /**
      * Check if the ffs.adb function exists in configfs.
@@ -211,6 +257,9 @@ object UsbGadgetManager {
                 logCallback("[Gadget] ADB not currently active, ignoring keepAdb option.")
             }
         }
+        
+        // Anti-Interference: Stop USB HAL if running
+        stopUsbHal(logCallback, settingsRepo)
         
         // Backup original strings if not already done
         // Backup original strings if not already done
@@ -448,6 +497,10 @@ object UsbGadgetManager {
         
         // Restore system USB control
         restoreUsbConfig("adb", logCallback)
+        
+        // Restart USB HAL if we stopped it
+        startUsbHal(logCallback, settingsRepo)
+        
         logCallback("[Gadget] Gadget disabled. USB restored to system control.")
     }
 
@@ -602,8 +655,12 @@ object UsbGadgetManager {
         if (cardIndex != -1) {
             val devPath = "/dev/snd/pcmC${cardIndex}D0c"
             if (runRootCommand("test -e $devPath", {})) {
-                 runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0c", logCallback)
-                 runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0p", {})
+                 // Retry chmod in case of race conditions
+                 for (i in 1..3) {
+                     runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0c", {})
+                     runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0p", {})
+                     Thread.sleep(100)
+                 }
                  logCallback("[Gadget] UAC2 driver found at card $cardIndex")
                  return@withContext cardIndex
             } else {
