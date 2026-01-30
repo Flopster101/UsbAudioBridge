@@ -471,11 +471,13 @@ object UsbGadgetManager {
             }
         }
 
-        // 2. Try Magisk via magiskpolicy
+        // 2. Try Magisk/APatch via magiskpolicy
         // Magisk stores binaries at /data/adb/magisk/ (MAGISKBIN)
+        // APatch stores binaries at /data/adb/ap/bin/
         // Also check common alternative paths and tmpfs mount
         val magiskPolicyPaths = listOf(
-            "/data/adb/magisk/magiskpolicy",  // Standard MAGISKBIN location
+            "/data/adb/magisk/magiskpolicy",  // Standard Magisk MAGISKBIN location
+            "/data/adb/ap/bin/magiskpolicy",  // APatch location
             "/data/adb/magisk/supolicy",      // Symlink for SuperSU compatibility
             "/system/bin/magiskpolicy",       // System installed (rare)
             "/sbin/magiskpolicy",             // Legacy path
