@@ -25,6 +25,7 @@ class AudioService : Service() {
         const val ACTION_LOG = "com.flopster101.usbaudiobridge.LOG"
         const val ACTION_STATE_CHANGED = "com.flopster101.usbaudiobridge.STATE_CHANGED"
         const val ACTION_STATS_UPDATE = "com.flopster101.usbaudiobridge.STATS_UPDATE"
+        const val ACTION_GADGET_RESULT = "com.flopster101.usbaudiobridge.GADGET_RESULT"
         const val EXTRA_MSG = "msg"
         const val EXTRA_IS_RUNNING = "isRunning"
         const val EXTRA_STATE_LABEL = "stateLabel"
@@ -270,22 +271,30 @@ class AudioService : Service() {
         return UsbGadgetManager.isGadgetActive()
     }
 
-    fun enableGadget(sampleRate: Int) {
+    fun enableGadget(sampleRate: Int, keepAdb: Boolean) {
         serviceScope.launch {
              if (UsbGadgetManager.isGadgetActive()) {
                   UsbGadgetManager.applySeLinuxPolicy { msg -> broadcastLog(msg) }
                   broadcastLog("[App] Gadget already active.")
+                  broadcastGadgetResult(true)
                   return@launch
              }
              
              broadcastLog("[App] Setting up USB gadget config ($sampleRate Hz)...")
-             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo)
+             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo, keepAdb)
              if (success) {
                   broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
                   broadcastLog("[App] Failed to configure gadget.")
              }
+             broadcastGadgetResult(success)
         }
+    }
+    
+    private fun broadcastGadgetResult(success: Boolean) {
+        val intent = Intent(ACTION_GADGET_RESULT)
+        intent.putExtra("success", success)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     fun stopAudioOnly() {
@@ -344,6 +353,7 @@ class AudioService : Service() {
         
         serviceScope.launch {
              UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
+             broadcastGadgetResult(false)  // Notify UI that gadget is now disabled
              stopSelf()
         }
     }

@@ -63,14 +63,16 @@ import android.widget.Toast
 // UI State Definition
 data class MainUiState(
     val isGadgetEnabled: Boolean = false,
+    val isGadgetPending: Boolean = false,  // Gadget operation in progress?
     val isServiceRunning: Boolean = false, // Streaming active?
     val isAppBound: Boolean = false,       // Service bound?
     
     // Config
     val bufferSize: Float = 4800f,
     val periodSizeOption: Int = 0, // 0 = Auto
-    val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL
+    val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL, 2 = AudioTrack
     val sampleRateOption: Int = 48000,
+    val keepAdbOption: Boolean = false,
 
     // Status
     val serviceState: String = "Idle",
@@ -136,6 +138,14 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+    
+    private val gadgetResultReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null) return
+            val success = intent.getBooleanExtra("success", false)
+            uiState = uiState.copy(isGadgetEnabled = success, isGadgetPending = false)
+        }
+    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -163,7 +173,8 @@ class MainActivity : ComponentActivity() {
             bufferSize = settingsRepo.getBufferSize(),
             periodSizeOption = settingsRepo.getPeriodSize(),
             engineTypeOption = settingsRepo.getEngineType(),
-            sampleRateOption = settingsRepo.getSampleRate()
+            sampleRateOption = settingsRepo.getSampleRate(),
+            keepAdbOption = settingsRepo.getKeepAdb()
         )
         
         // Start Service
@@ -175,6 +186,7 @@ class MainActivity : ComponentActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(logReceiver, IntentFilter(AudioService.ACTION_LOG))
         LocalBroadcastManager.getInstance(this).registerReceiver(stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED))
         LocalBroadcastManager.getInstance(this).registerReceiver(statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE))
+        LocalBroadcastManager.getInstance(this).registerReceiver(gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT))
 
         setContent {
             // Basic Material Theme wrapper
@@ -186,11 +198,13 @@ class MainActivity : ComponentActivity() {
                     state = uiState,
                     onToggleGadget = { enable ->
                          if (enable) {
-                             audioService?.enableGadget(uiState.sampleRateOption)
-                             uiState = uiState.copy(isGadgetEnabled = true)
+                             // Set pending state, wait for result broadcast to confirm
+                             uiState = uiState.copy(isGadgetPending = true)
+                             audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
                          } else {
+                             uiState = uiState.copy(isGadgetPending = true)
                              audioService?.stopBridge()
-                             uiState = uiState.copy(isGadgetEnabled = false, isServiceRunning = false)
+                             // Don't set state here - wait for broadcast result
                          }
                     },
                     onToggleCapture = {
@@ -216,13 +230,18 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState.copy(sampleRateOption = it)
                         settingsRepo.saveSampleRate(it)
                     },
+                    onKeepAdbChange = {
+                        uiState = uiState.copy(keepAdbOption = it)
+                        settingsRepo.saveKeepAdb(it)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
                             bufferSize = settingsRepo.getBufferSize(),
                             periodSizeOption = settingsRepo.getPeriodSize(),
                             engineTypeOption = settingsRepo.getEngineType(),
-                            sampleRateOption = settingsRepo.getSampleRate()
+                            sampleRateOption = settingsRepo.getSampleRate(),
+                            keepAdbOption = settingsRepo.getKeepAdb()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -268,6 +287,7 @@ class MainActivity : ComponentActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statsReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetResultReceiver)
         if (uiState.isAppBound) unbindService(connection)
     }
 }
@@ -282,6 +302,7 @@ fun AppNavigation(
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
+    onKeepAdbChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -320,6 +341,7 @@ fun AppNavigation(
                     onPeriodSizeChange = onPeriodSizeChange,
                     onEngineTypeChange = onEngineTypeChange,
                     onSampleRateChange = onSampleRateChange,
+                    onKeepAdbChange = onKeepAdbChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -389,9 +411,16 @@ fun HomeScreen(
                     ) {
                         FilledTonalButton(
                             onClick = { onToggleGadget(!state.isGadgetEnabled) },
+                            enabled = !state.isGadgetPending,
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
-                            Text(if (state.isGadgetEnabled) "Disable USB Gadget" else "Enable USB Gadget")
+                            Text(
+                                when {
+                                    state.isGadgetPending -> if (state.isGadgetEnabled) "Disabling..." else "Enabling..."
+                                    state.isGadgetEnabled -> "Disable USB Gadget"
+                                    else -> "Enable USB Gadget"
+                                }
+                            )
                         }
                         Spacer(Modifier.height(12.dp))
                         Button(
@@ -546,6 +575,7 @@ fun SettingsScreen(
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
+    onKeepAdbChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -726,6 +756,38 @@ fun SettingsScreen(
                                 label = { Text(labels[index]) }
                             )
                         }
+                    }
+                }
+            }
+        }
+        
+        // Advanced USB Settings
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Advanced USB Settings", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Keep ADB Enabled",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Forces ADB to remain active (Composite Gadget). May not work on some devices..",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.keepAdbOption,
+                            onCheckedChange = onKeepAdbChange
+                        )
                     }
                 }
             }

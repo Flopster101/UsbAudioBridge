@@ -17,6 +17,9 @@ class SettingsRepository(context: Context) {
     fun saveSampleRate(rate: Int) = prefs.edit().putInt("sample_rate", rate).apply()
     fun getSampleRate(): Int = prefs.getInt("sample_rate", 48000)
     
+    fun saveKeepAdb(enabled: Boolean) = prefs.edit().putBoolean("keep_adb", enabled).apply()
+    fun getKeepAdb(): Boolean = prefs.getBoolean("keep_adb", false)
+    
     fun saveOriginalIdentity(manufacturer: String, product: String) {
         prefs.edit()
             .putString("orig_man", manufacturer)
