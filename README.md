@@ -14,5 +14,13 @@ A simple tool to turn your Android device into a USB Soundcard for any USB host 
 *   **Service-based:** Runs in the foreground to keep audio alive.
 *   **Bridge input and output:** Your Android device can act as a microphone and a speaker at the same time! 
 
+#### TODOs
+
+- [ ] Test Magisk and Apatch support (implemented, untested)
+- [ ] Improve performance (crackling is present on older devices)
+- [ ] Support more intrusive USB Gadget HALs (maybe disable HAL before enabling gadget?)
+- [ ] Notice for when root is not found (currently crashes app)
+- [ ] Properly restore the previous gadget state accurately after disabling
+
 ## License
 GNU GPLv3
