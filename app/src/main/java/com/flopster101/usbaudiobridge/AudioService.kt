@@ -8,8 +8,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -185,6 +187,14 @@ class AudioService : Service() {
     // Called from C++ JNI
     fun onNativeState(stateCode: Int) {
         lastNativeState = stateCode
+        when (stateCode) {
+            STATE_STREAMING -> updateNotification("Streaming audio")
+            STATE_CONNECTING -> updateNotification("Connecting...")
+            STATE_WAITING -> updateNotification("Waiting for host")
+            STATE_IDLING -> updateNotification("Idle")
+            STATE_ERROR -> updateNotification("Error")
+            else -> updateNotification("Service Ready")
+        }
         updateUiState()
     }
     
@@ -285,7 +295,11 @@ class AudioService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification("Service Ready")
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(1, notification)
+        }
         return START_NOT_STICKY
     }
 
@@ -437,6 +451,13 @@ class AudioService : Service() {
             }
 
             broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections, MicSrc: $micSource)...")
+            
+            // Update foreground service type to include microphone for Android 14+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val notification = createNotification("Monitoring Active")
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            }
+            
             startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections, micSource)
             
             isBridgeRunning = true
@@ -458,6 +479,13 @@ class AudioService : Service() {
             lastNativeState = STATE_STOPPED
             lastErrorMsg = ""
             updateNotification("Monitoring Stopped")
+            
+            // Revert foreground service type to mediaPlayback only
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val notification = createNotification("Monitoring Stopped")
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            }
+            
             updateUiState()
             broadcastLog("[App] Audio stopped.")
         }
@@ -488,7 +516,7 @@ class AudioService : Service() {
 
     private fun createNotificationChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "USB Audio Monitor", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "USB Audio Monitor", NotificationManager.IMPORTANCE_DEFAULT)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
@@ -497,8 +525,9 @@ class AudioService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("USB Audio Monitor")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 
