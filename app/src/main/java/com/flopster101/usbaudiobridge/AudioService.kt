@@ -15,6 +15,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class AudioService : Service() {
@@ -26,7 +27,10 @@ class AudioService : Service() {
         const val ACTION_STATE_CHANGED = "com.flopster101.usbaudiobridge.STATE_CHANGED"
         const val ACTION_STATS_UPDATE = "com.flopster101.usbaudiobridge.STATS_UPDATE"
         const val ACTION_GADGET_RESULT = "com.flopster101.usbaudiobridge.GADGET_RESULT"
+        const val ACTION_GADGET_STATUS = "com.flopster101.usbaudiobridge.GADGET_STATUS"
         const val EXTRA_MSG = "msg"
+        const val EXTRA_UDC_CONTROLLER = "udcController"
+        const val EXTRA_ACTIVE_FUNCTIONS = "activeFunctions"
         const val EXTRA_IS_RUNNING = "isRunning"
         const val EXTRA_STATE_LABEL = "stateLabel"
         const val EXTRA_STATE_COLOR = "stateColor"
@@ -295,6 +299,30 @@ class AudioService : Service() {
         val intent = Intent(ACTION_GADGET_RESULT)
         intent.putExtra("success", success)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        // Also broadcast updated gadget status
+        broadcastGadgetStatus()
+    }
+    
+    fun broadcastGadgetStatus() {
+        serviceScope.launch(Dispatchers.IO) {
+            // Poll for UDC to be populated (HAL may take time to rebind after disable)
+            var status = UsbGadgetManager.getGadgetStatus()
+            var attempts = 0
+            val maxAttempts = 10
+            
+            // If UDC is empty, poll until it's populated or timeout
+            while (!status.isBound && attempts < maxAttempts) {
+                delay(200)
+                status = UsbGadgetManager.getGadgetStatus()
+                attempts++
+            }
+            
+            val intent = Intent(ACTION_GADGET_STATUS).apply {
+                putExtra(EXTRA_UDC_CONTROLLER, status.udcController)
+                putExtra(EXTRA_ACTIVE_FUNCTIONS, status.activeFunctions.joinToString(", ").ifEmpty { "--" })
+            }
+            LocalBroadcastManager.getInstance(this@AudioService).sendBroadcast(intent)
+        }
     }
 
     fun stopAudioOnly() {
@@ -341,15 +369,19 @@ class AudioService : Service() {
     }
 
     fun stopBridge() {
-        // Always allow stop to clear states
-        broadcastLog("[App] Stopping audio bridge...")
-        stopAudioBridge()
-        isBridgeRunning = false
-        lastNativeState = STATE_STOPPED
-        lastErrorMsg = ""
-        updateNotification("Monitoring Stopped")
-        updateUiState()
-        broadcastLog("[App] Audio stopped.")
+        val wasRunning = isBridgeRunning
+        
+        // Stop native bridge if running
+        if (wasRunning) {
+            broadcastLog("[App] Stopping audio bridge...")
+            stopAudioBridge()
+            isBridgeRunning = false
+            lastNativeState = STATE_STOPPED
+            lastErrorMsg = ""
+            updateNotification("Monitoring Stopped")
+            updateUiState()
+            broadcastLog("[App] Audio stopped.")
+        }
         
         serviceScope.launch {
              UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)

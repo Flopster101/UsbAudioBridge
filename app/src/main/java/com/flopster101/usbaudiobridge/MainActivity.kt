@@ -81,6 +81,10 @@ data class MainUiState(
     val periodSize: String = "--",
     val currentBuffer: String = "--",
 
+    // Gadget Status
+    val udcController: String = "--",
+    val activeFunctions: String = "--",
+
     // Logs
     val logText: String = "",
     val isLogsExpanded: Boolean = false
@@ -146,6 +150,18 @@ class MainActivity : ComponentActivity() {
             uiState = uiState.copy(isGadgetEnabled = success, isGadgetPending = false)
         }
     }
+    
+    private val gadgetStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null) return
+            val udcController = intent.getStringExtra(AudioService.EXTRA_UDC_CONTROLLER) ?: "--"
+            val activeFunctions = intent.getStringExtra(AudioService.EXTRA_ACTIVE_FUNCTIONS) ?: "--"
+            uiState = uiState.copy(
+                udcController = udcController,
+                activeFunctions = activeFunctions
+            )
+        }
+    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -187,6 +203,7 @@ class MainActivity : ComponentActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED))
         LocalBroadcastManager.getInstance(this).registerReceiver(statsReceiver, IntentFilter(AudioService.ACTION_STATS_UPDATE))
         LocalBroadcastManager.getInstance(this).registerReceiver(gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT))
+        LocalBroadcastManager.getInstance(this).registerReceiver(gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS))
 
         setContent {
             // Basic Material Theme wrapper
@@ -262,6 +279,8 @@ class MainActivity : ComponentActivity() {
                          appendLog("[App] Restored connection to active stream")
                      }
                  }
+                 // Fetch and broadcast gadget status
+                 service.broadcastGadgetStatus()
              }.start()
         }
     }
@@ -288,6 +307,7 @@ class MainActivity : ComponentActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statsReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetResultReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(gadgetStatusReceiver)
         if (uiState.isAppBound) unbindService(connection)
     }
 }
@@ -458,6 +478,30 @@ fun HomeScreen(
                         StatusRow("Period Size", state.periodSize)
                         Spacer(Modifier.height(8.dp))
                         StatusRow("Current Buffer", state.currentBuffer)
+                    }
+                }
+            }
+
+            // Card 3: Gadget Status
+            item {
+                Text(
+                    text = "GADGET STATUS",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
+                )
+            
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        StatusRow("Controller", state.udcController)
+                        Spacer(Modifier.height(8.dp))
+                        StatusRow("Active Functions", state.activeFunctions)
                     }
                 }
             }

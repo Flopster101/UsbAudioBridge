@@ -7,6 +7,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.DataOutputStream
 
+/**
+ * Represents the current status of the USB gadget subsystem.
+ */
+data class GadgetStatus(
+    val udcController: String,      // The UDC controller name (e.g., "13600000.dwc3") or "None"
+    val activeFunctions: List<String>,  // List of active function names (e.g., ["uac2", "ffs.adb"])
+    val isBound: Boolean            // Whether the gadget is bound to a controller
+)
+
 object UsbGadgetManager {
     private const val TAG = "UsbGadgetManager"
     
@@ -538,6 +547,54 @@ object UsbGadgetManager {
     fun checkStatus(): String {
         val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
         return process.inputStream.bufferedReader().readText().trim()
+    }
+
+    /**
+     * Get comprehensive gadget status including UDC controller and active functions.
+     * This should be called from a background thread.
+     */
+    fun getGadgetStatus(): GadgetStatus {
+        return try {
+            // Get UDC controller
+            val udcProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
+            val udcController = udcProcess.inputStream.bufferedReader().readText().trim()
+            val isBound = udcController.isNotEmpty() && udcController != "none"
+
+            // Get active functions by reading symlink targets in configs/b.1/
+            val functionsProcess = Runtime.getRuntime().exec(arrayOf(
+                "su", "-c", 
+                "for f in $GADGET_ROOT/configs/b.1/f*; do [ -L \"\$f\" ] && basename \$(readlink \"\$f\"); done 2>/dev/null"
+            ))
+            val functionsOutput = functionsProcess.inputStream.bufferedReader().readText().trim()
+            val activeFunctions = if (functionsOutput.isNotEmpty()) {
+                functionsOutput.lines()
+                    .filter { it.isNotBlank() }
+                    .map { it.trim() }
+                    .map { 
+                        // Clean up function names (e.g., "uac2.0" -> "uac2", "ffs.adb" -> "adb")
+                        when {
+                            it.startsWith("uac2") -> "uac2"
+                            it.startsWith("ffs.") -> it.removePrefix("ffs.")
+                            else -> it
+                        }
+                    }
+            } else {
+                emptyList()
+            }
+
+            GadgetStatus(
+                udcController = if (isBound) udcController else "--",
+                activeFunctions = activeFunctions,
+                isBound = isBound
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting gadget status: ${e.message}")
+            GadgetStatus(
+                udcController = "--",
+                activeFunctions = emptyList(),
+                isBound = false
+            )
+        }
     }
 
     fun runRootCommands(commands: List<String>, logCallback: (String) -> Unit): Boolean {
