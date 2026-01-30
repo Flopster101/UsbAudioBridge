@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
             if (intent == null) return
             val success = intent.getBooleanExtra("success", false)
             uiState = uiState.copy(isGadgetEnabled = success, isGadgetPending = false)
+            audioService?.setGadgetEnabled(success)
         }
     }
     
@@ -196,6 +197,7 @@ class MainActivity : ComponentActivity() {
             val binder = service as AudioService.LocalBinder
             audioService = binder.getService()
             uiState = uiState.copy(isAppBound = true)
+            audioService?.setGadgetEnabled(uiState.isGadgetEnabled)
             appendLog("[App] Service connected")
             restoreUiState()
         }
@@ -279,9 +281,10 @@ class MainActivity : ComponentActivity() {
                              uiState = uiState.copy(isGadgetPending = true)
                              audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
                          } else {
-                             uiState = uiState.copy(isGadgetPending = true)
+                             uiState = uiState.copy(isGadgetEnabled = false, isGadgetPending = true)
+                             audioService?.setGadgetEnabled(false)
                              audioService?.stopBridge()
-                             // Don't set state here - wait for broadcast result
+                             // Don't wait for broadcast result for disable
                          }
                     },
                     onToggleCapture = {

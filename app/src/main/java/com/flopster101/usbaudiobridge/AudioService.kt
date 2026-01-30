@@ -382,6 +382,13 @@ class AudioService : Service() {
         return UsbGadgetManager.isGadgetActive()
     }
 
+    private var isGadgetEnabled = false
+
+    fun setGadgetEnabled(enabled: Boolean) {
+        isGadgetEnabled = enabled
+        refreshNotification()
+    }
+
     fun enableGadget(sampleRate: Int, keepAdb: Boolean) {
         serviceScope.launch {
              if (UsbGadgetManager.isGadgetActive()) {
@@ -504,7 +511,7 @@ class AudioService : Service() {
             isBridgeRunning = false
             lastNativeState = STATE_STOPPED
             lastErrorMsg = ""
-            updateNotification("Inactive", false)
+            updateNotification(getStatusText(), false)
             
             // Update foreground state based on notification setting
             if (settingsRepo.getNotificationEnabled()) {
@@ -608,15 +615,23 @@ class AudioService : Service() {
         }
     }
 
-    fun refreshNotification() {
-        val statusText = when (lastNativeState) {
-            STATE_STREAMING -> "Streaming"
-            STATE_CONNECTING -> "Connecting"
-            STATE_WAITING -> "Waiting for host"
-            STATE_IDLING -> "Idle"
-            STATE_ERROR -> "Error"
-            else -> "Inactive"
+    private fun getStatusText(): String {
+        return if (!isGadgetEnabled) {
+            "Inactive - Gadget disabled"
+        } else {
+            when (lastNativeState) {
+                STATE_STREAMING -> "Streaming"
+                STATE_CONNECTING -> "Connecting"
+                STATE_WAITING -> "Waiting for host"
+                STATE_IDLING -> "Idle"
+                STATE_ERROR -> "Error"
+                else -> "Inactive"
+            }
         }
+    }
+
+    fun refreshNotification() {
+        val statusText = getStatusText()
         val bridgeText = if (isBridgeRunning) " - ${getBridgeText(lastActiveDirections)}" else ""
         val fullText = if (isBridgeRunning) "Active ($statusText)$bridgeText" else statusText
         
