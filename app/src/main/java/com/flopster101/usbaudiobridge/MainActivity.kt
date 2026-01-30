@@ -775,8 +775,8 @@ fun SettingsScreen(
     ) {
         item {
             Text(
-                text = "Audio configuration",
-                style = MaterialTheme.typography.titleLarge,
+                text = "AUDIO CONFIGURATION",
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -1034,12 +1034,18 @@ fun SettingsScreen(
             }
         }
         
-        // Advanced USB Settings
+        // USB Settings
+        item {
+            Text(
+                text = "USB SETTINGS",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Advanced USB Settings", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1068,10 +1074,16 @@ fun SettingsScreen(
 
         // Audio Behavior
         item {
+            Text(
+                text = "AUDIO BEHAVIOR",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Audio Behavior", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
