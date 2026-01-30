@@ -601,15 +601,20 @@ class AudioService : Service() {
     }
 
     fun refreshNotification() {
-        val text = when {
-            isBridgeRunning -> "Active"
-            lastErrorMsg.isNotEmpty() -> "Monitoring Error"
+        val statusText = when (lastNativeState) {
+            STATE_STREAMING -> "Streaming"
+            STATE_CONNECTING -> "Connecting"
+            STATE_WAITING -> "Waiting for host"
+            STATE_IDLING -> "Idle"
+            STATE_ERROR -> "Error"
             else -> "Inactive"
         }
+        val bridgeText = if (isBridgeRunning) " - ${getBridgeText(lastActiveDirections)}" else ""
+        val fullText = if (isBridgeRunning) "Active ($statusText)$bridgeText" else statusText
         
         if (settingsRepo.getNotificationEnabled()) {
             // Show/update notification
-            getSystemService(NotificationManager::class.java).notify(1, createNotification(text, isBridgeRunning))
+            getSystemService(NotificationManager::class.java).notify(1, createNotification(fullText, isBridgeRunning))
         } else {
             // Cancel notification and stop foreground service if running
             getSystemService(NotificationManager::class.java).cancel(1)
