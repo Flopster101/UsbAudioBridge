@@ -28,23 +28,26 @@ class SettingsRepository(context: Context) {
     fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
     fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()
     
-    fun saveOriginalIdentity(manufacturer: String, product: String) {
+    fun saveOriginalIdentity(manufacturer: String, product: String, serial: String) {
         prefs.edit()
             .putString("orig_man", manufacturer)
             .putString("orig_prod", product)
+            .putString("orig_serial", serial)
             .apply()
     }
     
-    fun getOriginalIdentity(): Pair<String?, String?> {
+    fun getOriginalIdentity(): Triple<String?, String?, String?> {
         val m = prefs.getString("orig_man", null)
         val p = prefs.getString("orig_prod", null)
-        return m to p
+        val s = prefs.getString("orig_serial", null)
+        return Triple(m, p, s)
     }
     
     fun clearOriginalIdentity() {
         prefs.edit()
             .remove("orig_man")
             .remove("orig_prod")
+            .remove("orig_serial")
             .apply()
     }
 

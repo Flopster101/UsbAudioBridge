@@ -213,26 +213,33 @@ object UsbGadgetManager {
         }
         
         // Backup original strings if not already done
+        // Backup original strings if not already done
         if (settingsRepo != null) {
-            val (savedMan, savedProd) = settingsRepo.getOriginalIdentity()
-            if (savedMan == null || savedProd == null) {
+            val (savedMan, savedProd, savedSerial) = settingsRepo.getOriginalIdentity()
+            if (savedMan == null || savedProd == null || savedSerial == null) {
                 try {
                     val pProd = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/product"))
                     val currProd = pProd.inputStream.bufferedReader().readText().trim()
                     
                     val pMan = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/manufacturer"))
                     val currMan = pMan.inputStream.bufferedReader().readText().trim()
+
+                    val pSerial = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/serialnumber"))
+                    val currSerial = pSerial.inputStream.bufferedReader().readText().trim()
                     
                     if (currProd.isNotEmpty() && !currProd.contains("Audio Bridge") && !currMan.contains("FloppyKernel")) {
-                        settingsRepo.saveOriginalIdentity(currMan, currProd)
-                        logCallback("[Gadget] Backed up original identity: $currMan - $currProd")
+                        settingsRepo.saveOriginalIdentity(currMan, currProd, currSerial)
+                        logCallback("[Gadget] Backed up original identity: $currMan - $currProd ($currSerial)")
                     } else {
                         val pModel = Runtime.getRuntime().exec("getprop ro.product.model")
                         val fallbackProd = pModel.inputStream.bufferedReader().readText().trim()
                         val pBrand = Runtime.getRuntime().exec("getprop ro.product.manufacturer")
                         val fallbackMan = pBrand.inputStream.bufferedReader().readText().trim()
-                        settingsRepo.saveOriginalIdentity(fallbackMan, fallbackProd)
-                        logCallback("[Gadget] Backed up identity from props: $fallbackMan - $fallbackProd")
+                        val pSer = Runtime.getRuntime().exec("getprop ro.serialno")
+                        val fallbackSerial = pSer.inputStream.bufferedReader().readText().trim()
+                        
+                        settingsRepo.saveOriginalIdentity(fallbackMan, fallbackProd, fallbackSerial)
+                        logCallback("[Gadget] Backed up identity from props: $fallbackMan - $fallbackProd ($fallbackSerial)")
                     }
                 } catch (e: Exception) {
                     logCallback("[Gadget] Failed to backup strings: ${e.message}")
@@ -411,11 +418,12 @@ object UsbGadgetManager {
         // Restore strings if available
         var restored = false
         if (settingsRepo != null) {
-            val (origMan, origProd) = settingsRepo.getOriginalIdentity()
-            if (origMan != null && origProd != null) {
+            val (origMan, origProd, origSerial) = settingsRepo.getOriginalIdentity()
+            if (origMan != null && origProd != null && origSerial != null) {
                 runRootCommands(listOf(
                     "echo \"$origMan\" > $GADGET_ROOT/strings/0x409/manufacturer",
-                    "echo \"$origProd\" > $GADGET_ROOT/strings/0x409/product"
+                    "echo \"$origProd\" > $GADGET_ROOT/strings/0x409/product",
+                    "echo \"$origSerial\" > $GADGET_ROOT/strings/0x409/serialnumber"
                 )) { } 
                 logCallback("[Gadget] Restored original identity.")
                 settingsRepo.clearOriginalIdentity()
@@ -426,7 +434,8 @@ object UsbGadgetManager {
         if (!restored) {
             runRootCommands(listOf(
                 "echo \"\" > $GADGET_ROOT/strings/0x409/manufacturer",
-                "echo \"\" > $GADGET_ROOT/strings/0x409/product"
+                "echo \"\" > $GADGET_ROOT/strings/0x409/product",
+                "echo \"\" > $GADGET_ROOT/strings/0x409/serialnumber"
             )) {}
         }
 
