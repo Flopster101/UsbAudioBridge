@@ -538,7 +538,7 @@ class AudioService : Service() {
 
     fun toggleCapture() {
         if (isBridgeRunning) {
-            stopBridge()
+            stopAudioOnly()
         } else {
             // Start with last params or defaults
             val bufferSize = if (lastBufferSize > 0) lastBufferSize else 1024
