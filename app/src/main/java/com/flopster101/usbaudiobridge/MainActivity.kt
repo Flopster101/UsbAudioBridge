@@ -557,7 +557,7 @@ fun HomeScreen(
                     Column(modifier = Modifier.padding(24.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Active devices",
+                                text = "Active bridges",
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -617,11 +617,11 @@ fun HomeScreen(
                     Column(modifier = Modifier.padding(24.dp)) {
                         StatusRow("State", state.serviceState, Color(state.serviceStateColor))
                         Spacer(Modifier.height(8.dp))
-                        StatusRow("Sample Rate", state.sampleRate)
+                        StatusRow("Sample rate", state.sampleRate)
                         Spacer(Modifier.height(8.dp))
-                        StatusRow("Period Size", state.periodSize)
+                        StatusRow("Period size", state.periodSize)
                         Spacer(Modifier.height(8.dp))
-                        StatusRow("Current Buffer", state.currentBuffer)
+                        StatusRow("Current buffer", state.currentBuffer)
                     }
                 }
             }
@@ -645,7 +645,7 @@ fun HomeScreen(
                     Column(modifier = Modifier.padding(24.dp)) {
                         StatusRow("Controller", state.udcController)
                         Spacer(Modifier.height(8.dp))
-                        StatusRow("Active Functions", state.activeFunctions)
+                        StatusRow("Active functions", state.activeFunctions)
                     }
                 }
             }
@@ -775,7 +775,7 @@ fun SettingsScreen(
     ) {
         item {
             Text(
-                text = "Audio Configuration",
+                text = "Audio configuration",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -785,7 +785,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Buffer Size", style = MaterialTheme.typography.titleMedium)
+                    Text("Buffer size", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     
                     val rate = state.sampleRateOption.toFloat()
