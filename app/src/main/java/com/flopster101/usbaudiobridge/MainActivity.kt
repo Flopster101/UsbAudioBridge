@@ -86,6 +86,7 @@ data class MainUiState(
     val autoRestartOnOutputChange: Boolean = false,
     val activeDirectionsOption: Int = 1, // 1=Speaker, 2=Mic, 3=Both
     val micSourceOption: Int = 6, // 6=VoiceRec (Default/Auto)
+    val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
 
     // Status
@@ -228,6 +229,7 @@ class MainActivity : ComponentActivity() {
             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
             activeDirectionsOption = settingsRepo.getActiveDirections(),
             micSourceOption = settingsRepo.getMicSource(),
+            notificationEnabled = settingsRepo.getNotificationEnabled(),
             showKernelNotice = settingsRepo.shouldShowKernelNotice()
         )
 
@@ -326,6 +328,11 @@ class MainActivity : ComponentActivity() {
                          uiState = uiState.copy(micSourceOption = it)
                          settingsRepo.saveMicSource(it)
                     },
+                    onNotificationEnabledChange = {
+                        uiState = uiState.copy(notificationEnabled = it)
+                        settingsRepo.saveNotificationEnabled(it)
+                        audioService?.refreshNotification()
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -337,7 +344,8 @@ class MainActivity : ComponentActivity() {
 
                             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
                             activeDirectionsOption = settingsRepo.getActiveDirections(),
-                            micSourceOption = settingsRepo.getMicSource()
+                            micSourceOption = settingsRepo.getMicSource(),
+                            notificationEnabled = settingsRepo.getNotificationEnabled()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -425,6 +433,7 @@ fun AppNavigation(
     onAutoRestartChange: (Boolean) -> Unit,
     onActiveDirectionsChange: (Int) -> Unit,
     onMicSourceChange: (Int) -> Unit,
+    onNotificationEnabledChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -471,6 +480,7 @@ fun AppNavigation(
                     onAutoRestartChange = onAutoRestartChange,
                     onActiveDirectionsChange = onActiveDirectionsChange,
                     onMicSourceChange = onMicSourceChange,
+                    onNotificationEnabledChange = onNotificationEnabledChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -792,6 +802,7 @@ fun SettingsScreen(
     onAutoRestartChange: (Boolean) -> Unit,
     onActiveDirectionsChange: (Int) -> Unit,
     onMicSourceChange: (Int) -> Unit,
+    onNotificationEnabledChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -1185,6 +1196,44 @@ fun SettingsScreen(
                         Switch(
                             checked = state.autoRestartOnOutputChange,
                             onCheckedChange = onAutoRestartChange
+                        )
+                    }
+                }
+            }
+        }
+
+        // Notification
+        item {
+            Text(
+                text = "NOTIFICATION",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Enable interactive notification",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Show notification with start/stop controls. When disabled, no notification is shown but background operation may be limited.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.notificationEnabled,
+                            onCheckedChange = onNotificationEnabledChange
                         )
                     }
                 }

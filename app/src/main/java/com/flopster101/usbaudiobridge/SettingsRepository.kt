@@ -36,6 +36,10 @@ class SettingsRepository(context: Context) {
     // Kernel compatibility notice
     fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
     fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()
+
+    // Notification enabled
+    fun saveNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("notification_enabled", enabled).apply()
+    fun getNotificationEnabled(): Boolean = prefs.getBoolean("notification_enabled", true)
     
     fun saveOriginalIdentity(manufacturer: String, product: String, serial: String) {
         prefs.edit()
