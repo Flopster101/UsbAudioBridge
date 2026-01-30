@@ -1045,8 +1045,8 @@ fun SettingsScreen(
         // Period Size
         item {
             var showPeriodDialog by remember { mutableStateOf(false) }
-            val options = listOf(0, 1024, 480, 240, 120, 64)
-            val labels = listOf("Auto", "1024", "480", "240", "120", "64")
+            val options = listOf(0, 4096, 2048, 1024, 480, 240, 120, 64)
+            val labels = listOf("Auto", "4096", "2048", "1024", "480", "240", "120", "64")
             
             ElevatedCard(
                 shape = RoundedCornerShape(16.dp),

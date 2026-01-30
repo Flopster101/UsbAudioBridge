@@ -44,7 +44,9 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   if (requested_period_size > 0) {
     periods.push_back((size_t)requested_period_size);
   } else {
-    periods = {1024, 480, 240};
+    // Auto: Prefer 1024 (21ms), then larger (safer), then specific 10ms
+    // multiples or smaller
+    periods = {1024, 2048, 4096, 480, 240, 120, 64};
   }
 
   bool opened = false;
