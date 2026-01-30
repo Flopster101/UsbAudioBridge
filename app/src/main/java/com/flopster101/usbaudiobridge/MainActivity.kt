@@ -32,12 +32,13 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
+
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -564,7 +565,7 @@ fun HomeScreen(
                         modifier = Modifier.size(32.dp) // Slightly smaller than default
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ContentCopy,
+                            painter = painterResource(R.drawable.ic_copy),
                             contentDescription = "Copy All Logs",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
@@ -935,7 +936,7 @@ fun AboutScreen() {
                 modifier = Modifier.size(96.dp)
             ) {
                 Icon(
-                    Icons.Default.Usb,
+                    painter = painterResource(R.drawable.ic_usb),
                     contentDescription = null,
                     modifier = Modifier
                         .padding(24.dp)
