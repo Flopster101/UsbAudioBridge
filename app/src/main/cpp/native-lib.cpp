@@ -512,7 +512,7 @@ public:
     void write(const uint8_t* data, size_t sizeBytes) override {
         if (stream) {
             // timeout 100ms
-            AAudioStream_write(stream, data, sizeBytes / 2, 100000000); // divide by 2 for int16 frames
+            AAudioStream_write(stream, data, sizeBytes / 4, 100000000); // divide by 2 for int16 frames
         }
     }
 
