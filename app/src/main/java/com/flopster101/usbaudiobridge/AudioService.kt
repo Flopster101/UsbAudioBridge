@@ -372,9 +372,18 @@ class AudioService : Service() {
                 if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
                 else "Active (Waiting for Host...)" to 0xFFFFC107 // Amber
             }
-            STATE_STREAMING -> "Streaming" to 0xFF4CAF50 // Green
-            STATE_IDLING -> "Active (Idling)" to 0xFF03A9F4 // Light Blue
-            else -> "Active" to 0xFF888888
+            STATE_STREAMING -> {
+                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                else "Streaming" to 0xFF4CAF50 // Green
+            }
+            STATE_IDLING -> {
+                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                else "Active (Idling)" to 0xFF03A9F4 // Light Blue
+            }
+            else -> {
+                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                else "Active" to 0xFF888888
+            }
         }
         broadcastState(label, color, lastActiveDirections)
     }
