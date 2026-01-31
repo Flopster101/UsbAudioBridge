@@ -1669,19 +1669,19 @@ fun ScreensaverOverlay(
                 .onSizeChanged { contentSize = it }
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             // Logo
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(96.dp)
+                modifier = Modifier.size(72.dp)
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_usb),
                     contentDescription = null,
                     modifier = Modifier
-                        .padding(24.dp)
+                        .padding(18.dp)
                         .fillMaxSize(),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -1690,24 +1690,35 @@ fun ScreensaverOverlay(
             // Title
             Text(
                 "USB Audio Bridge",
-                style = MaterialTheme.typography.headlineLarge,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
             
             // State
-            Text(
-                "State: ${state.serviceState}",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-                textAlign = TextAlign.Center
-            )
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "State: ",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    state.serviceState,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(state.serviceStateColor),
+                    textAlign = TextAlign.Center
+                )
+            }
             
             // Sample rate
             Text(
                 "Sample rate: ${state.sampleRate}",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
