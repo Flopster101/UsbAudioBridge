@@ -83,6 +83,8 @@ import java.util.Locale
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 // UI State Definition
 data class MainUiState(
@@ -126,7 +128,10 @@ data class MainUiState(
 
     // Logs
     val logText: String = "",
-    val isLogsExpanded: Boolean = false
+    val isLogsExpanded: Boolean = false,
+
+    // Playback device
+    val playbackDeviceType: PlaybackDeviceType = PlaybackDeviceType.UNKNOWN
 )
 
 class MainActivity : ComponentActivity() {
@@ -138,6 +143,18 @@ class MainActivity : ComponentActivity() {
     
     // Mutable State Holder
     private var uiState by mutableStateOf(MainUiState())
+
+    // Playback device broadcast receiver
+    private val playbackDeviceReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updatePlaybackDeviceType()
+        }
+    }
+
+    private fun updatePlaybackDeviceType() {
+        val type = PlaybackDeviceHelper.getCurrentPlaybackDevice(this)
+        uiState = uiState.copy(playbackDeviceType = type)
+    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -278,6 +295,25 @@ class MainActivity : ComponentActivity() {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
 
+        // Register playback device receiver
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_HEADSET_PLUG)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        registerReceiver(playbackDeviceReceiver, filter)
+
+        // Initial update
+        updatePlaybackDeviceType()
+
+        // Fallback timer (5s interval)
+        lifecycleScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(5000)
+                updatePlaybackDeviceType()
+            }
+        }
+
         // Request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -288,7 +324,7 @@ class MainActivity : ComponentActivity() {
         } else {
             startServiceAndBind()
         }
-        
+
         // Register Receivers
         ContextCompat.registerReceiver(this, logReceiver, IntentFilter(AudioService.ACTION_LOG), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, stateReceiver, IntentFilter(AudioService.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -776,16 +812,14 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
+                        // Active bridges row
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Text column
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Active bridges",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                
-                                // Show hint when icons are visible
                                 if (state.isServiceRunning && ((state.runningDirections and 1) != 0 || (state.runningDirections and 2) != 0)) {
                                     Text(
                                         text = "Tap icons to mute/unmute",
@@ -795,7 +829,6 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                            
                             if (!state.isServiceRunning) {
                                 Text(
                                     text = "--",
@@ -807,7 +840,6 @@ fun HomeScreen(
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     val isSpeaker = (state.runningDirections and 1) != 0
                                     val isMic = (state.runningDirections and 2) != 0
-
                                     if (isSpeaker) {
                                         Icon(
                                             painter = painterResource(if (state.speakerMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
@@ -829,6 +861,34 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        // Playback device row, icon aligned right
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Playback device:",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.weight(1f))
+                            val iconRes = when (state.playbackDeviceType) {
+                                PlaybackDeviceType.BLUETOOTH -> R.drawable.ic_playback_bluetooth
+                                PlaybackDeviceType.HEADPHONES -> R.drawable.ic_playback_headphones
+                                PlaybackDeviceType.SPEAKER -> R.drawable.ic_playback_speaker
+                                else -> null
+                            }
+                            if (iconRes != null) {
+                                Icon(
+                                    painter = painterResource(iconRes),
+                                    contentDescription = state.playbackDeviceType.name,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
@@ -1746,6 +1806,28 @@ fun ScreensaverOverlay(
                         Icon(
                             painter = painterResource(if (state.micMuted) R.drawable.ic_mic_off else R.drawable.ic_mic),
                             contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Playback device icon (centered, below bridge icons, no text)
+                val playbackIconRes = when (state.playbackDeviceType) {
+                    PlaybackDeviceType.BLUETOOTH -> R.drawable.ic_playback_bluetooth
+                    PlaybackDeviceType.HEADPHONES -> R.drawable.ic_playback_headphones
+                    PlaybackDeviceType.SPEAKER -> R.drawable.ic_playback_speaker
+                    else -> null
+                }
+                if (playbackIconRes != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(playbackIconRes),
+                            contentDescription = state.playbackDeviceType.name,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
