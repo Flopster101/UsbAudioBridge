@@ -10,6 +10,15 @@ android {
     compileSdk = 34
     ndkVersion = "29.0.14206865"
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.flopster101.usbaudiobridge"
         minSdk = 30
@@ -49,6 +58,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = minifyDebug
             isShrinkResources = minifyDebug
             if (minifyDebug) {
