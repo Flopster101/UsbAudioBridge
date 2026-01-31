@@ -347,7 +347,7 @@ class AudioService : Service() {
                plugged == android.os.BatteryManager.BATTERY_PLUGGED_AC
     }
 
-    private fun updateUiState() {
+    fun updateUiState() {
         // Special Case: Error state should persist even if bridge is "stopped"
         if (lastNativeState == STATE_ERROR) {
             broadcastState("Error ($lastErrorMsg)", 0xFFF44336) // Red
@@ -355,7 +355,8 @@ class AudioService : Service() {
         }
 
         if (!isBridgeRunning) {
-            broadcastState("Stopped", 0xFF888888, 0)
+            val stateText = if (hasCaptureEverStarted) "Stopped" else "Idle"
+            broadcastState(stateText, 0xFF888888, 0)
             return
         }
 
@@ -383,6 +384,7 @@ class AudioService : Service() {
     }
 
     private var isGadgetEnabled = false
+    private var hasCaptureEverStarted = false
 
     fun setGadgetEnabled(enabled: Boolean) {
         isGadgetEnabled = enabled
@@ -463,6 +465,8 @@ class AudioService : Service() {
 
     fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000, activeDirections: Int = 1, micSource: Int = 6) {
         if (isBridgeRunning) return
+        
+        hasCaptureEverStarted = true
         
         // Save parameters for potential auto-restart on output change
         lastBufferSize = bufferSize

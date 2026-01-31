@@ -363,12 +363,16 @@ class MainActivity : ComponentActivity() {
                  val gadgetActive = UsbGadgetManager.isGadgetActive()
                  runOnUiThread {
                      uiState = uiState.copy(isGadgetEnabled = gadgetActive)
+                     service.setGadgetEnabled(gadgetActive)
                      
                      if (service.isBridgeRunning) {
                          uiState = uiState.copy(isServiceRunning = true)
                          appendLog("[App] Restored connection to active stream")
                      }
                  }
+                 // Fetch and broadcast current state
+                 service.updateUiState()
+                 service.refreshNotification()
                  // Fetch and broadcast gadget status
                  service.broadcastGadgetStatus()
              }.start()
