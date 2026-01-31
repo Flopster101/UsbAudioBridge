@@ -24,6 +24,10 @@ class SettingsRepository(context: Context) {
     fun saveAutoRestartOnOutputChange(enabled: Boolean) = prefs.edit().putBoolean("auto_restart_output", enabled).apply()
     fun getAutoRestartOnOutputChange(): Boolean = prefs.getBoolean("auto_restart_output", false)
 
+    // If true: mute speaker bridge on media button press (Headset Play/Pause)
+    fun saveMuteOnMediaButton(enabled: Boolean) = prefs.edit().putBoolean("mute_on_media_button", enabled).apply()
+    fun getMuteOnMediaButton(): Boolean = prefs.getBoolean("mute_on_media_button", true)
+
     // 1 = Speaker (Host->Phone), 2 = Mic (Phone->Host), 3 = Both
     fun saveActiveDirections(mask: Int) = prefs.edit().putInt("active_directions", mask).apply()
     fun getActiveDirections(): Int = prefs.getInt("active_directions", 1)

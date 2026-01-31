@@ -43,6 +43,7 @@ fun AppNavigation(
     onScreensaverDeactivate: () -> Unit,
     onToggleSpeakerMute: () -> Unit,
     onToggleMicMute: () -> Unit,
+    onMuteOnMediaButtonChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -120,6 +121,7 @@ fun AppNavigation(
                     onScreensaverTimeoutChange = onScreensaverTimeoutChange,
                     onScreensaverRepositionIntervalChange = onScreensaverRepositionIntervalChange,
                     onScreensaverFullscreenChange = onScreensaverFullscreenChange,
+                    onMuteOnMediaButtonChange = onMuteOnMediaButtonChange,
                     onResetSettings = onResetSettings
                 )
             }

@@ -33,6 +33,7 @@ fun SettingsScreen(
     onScreensaverTimeoutChange: (Int) -> Unit,
     onScreensaverRepositionIntervalChange: (Int) -> Unit,
     onScreensaverFullscreenChange: (Boolean) -> Unit,
+    onMuteOnMediaButtonChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -423,9 +424,39 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(Modifier.width(16.dp))
                         Switch(
                             checked = state.autoRestartOnOutputChange,
                             onCheckedChange = onAutoRestartChange
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Control via Headset buttons",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Use headset/Bluetooth Play/Pause buttons to mute/unmute the speaker bridge.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Switch(
+                            checked = state.muteOnMediaButton,
+                            onCheckedChange = onMuteOnMediaButtonChange
                         )
                     }
                 }

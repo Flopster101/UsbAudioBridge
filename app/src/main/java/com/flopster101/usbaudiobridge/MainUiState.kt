@@ -27,6 +27,7 @@ data class MainUiState(
     val screensaverActive: Boolean = false,
     val speakerMuted: Boolean = false,
     val micMuted: Boolean = false,
+    val muteOnMediaButton: Boolean = true,
 
     // Status
     val serviceState: String = "Idle",

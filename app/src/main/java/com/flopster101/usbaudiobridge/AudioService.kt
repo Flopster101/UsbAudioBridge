@@ -38,6 +38,7 @@ class AudioService : Service() {
         const val EXTRA_UDC_CONTROLLER = "udcController"
         const val EXTRA_ACTIVE_FUNCTIONS = "activeFunctions"
         const val EXTRA_IS_RUNNING = "isRunning"
+        const val EXTRA_IS_MUTED = "isMuted"
         const val EXTRA_STATE_LABEL = "stateLabel"
         const val EXTRA_STATE_COLOR = "stateColor"
         const val EXTRA_RATE = "rate"
@@ -63,6 +64,8 @@ class AudioService : Service() {
     }
 
     private var audioTrack: android.media.AudioTrack? = null
+    private var mediaSession: android.media.session.MediaSession? = null
+    private var isSpeakerMuted = false
 
     // Called from C++ JNI
     fun initAudioTrack(rate: Int, channels: Int): Int {
@@ -85,6 +88,9 @@ class AudioService : Service() {
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(android.media.AudioTrack.MODE_STREAM)
                 .build()
+            
+            // Apply current mute state
+            audioTrack?.setVolume(if (isSpeakerMuted) 0f else 1f)
             
             return 1 // Success
         } catch (e: Exception) {
@@ -127,8 +133,11 @@ class AudioService : Service() {
     }
 
     fun setSpeakerMuted(muted: Boolean) {
+        isSpeakerMuted = muted
         try {
             audioTrack?.setVolume(if (muted) 0f else 1f)
+            updateMediaSessionState()
+            updateUiState()
         } catch (e: Exception) {
             Log.e(TAG, "Error setting speaker mute", e)
         }
@@ -177,6 +186,7 @@ class AudioService : Service() {
             Log.d(TAG, "Bridge finished normally")
             isBridgeRunning = false
             lastNativeState = STATE_STOPPED
+            mediaSession?.isActive = false
             updateNotification(getStatusText(), false)
             updateUiState()
         }
@@ -321,6 +331,35 @@ class AudioService : Service() {
         
         // Register for audio becoming noisy (headphones unplugged)
         registerReceiver(audioNoisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+        
+        // Initialize MediaSession
+        mediaSession = android.media.session.MediaSession(this, "UsbAudioBridgeSession").apply {
+            setCallback(object : android.media.session.MediaSession.Callback() {
+                override fun onPlay() {
+                    if (settingsRepo.getMuteOnMediaButton()) {
+                         setSpeakerMuted(false)
+                    }
+                }
+                override fun onPause() {
+                    if (settingsRepo.getMuteOnMediaButton()) {
+                         setSpeakerMuted(true)
+                    }
+                }
+            })
+            setFlags(android.media.session.MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or 
+                     android.media.session.MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
+        }
+    }
+
+    private fun updateMediaSessionState() {
+        val state = if (isSpeakerMuted) android.media.session.PlaybackState.STATE_PAUSED else android.media.session.PlaybackState.STATE_PLAYING
+        val playbackState = android.media.session.PlaybackState.Builder()
+            .setActions(android.media.session.PlaybackState.ACTION_PLAY or 
+                        android.media.session.PlaybackState.ACTION_PAUSE or 
+                        android.media.session.PlaybackState.ACTION_PLAY_PAUSE)
+            .setState(state, android.media.session.PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+            .build()
+        mediaSession?.setPlaybackState(playbackState)
     }
 
     private fun shouldBeForeground(): Boolean {
@@ -356,6 +395,8 @@ class AudioService : Service() {
         unregisterReceiver(usbReceiver)
         unregisterReceiver(audioNoisyReceiver)
         createNotificationChannel()
+        mediaSession?.release()
+        mediaSession = null
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -539,6 +580,11 @@ class AudioService : Service() {
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING
             lastErrorMsg = ""
+            
+            // Activate MediaSession
+            mediaSession?.isActive = true
+            updateMediaSessionState()
+            
             updateNotification("Active", true)
             updateUiState()
         }
@@ -554,6 +600,10 @@ class AudioService : Service() {
             isBridgeRunning = false
             lastNativeState = STATE_STOPPED
             lastErrorMsg = ""
+            
+            // Deactivate MediaSession
+            mediaSession?.isActive = false
+            
             updateNotification(getStatusText(), false)
             
             // Update foreground state based on notification setting
@@ -613,6 +663,7 @@ class AudioService : Service() {
     private fun broadcastState(label: String, color: Long, activeDirections: Int = 0) {
         val intent = Intent(ACTION_STATE_CHANGED)
         intent.putExtra(EXTRA_IS_RUNNING, isBridgeRunning)
+        intent.putExtra(EXTRA_IS_MUTED, isSpeakerMuted)
         intent.putExtra(EXTRA_STATE_LABEL, label)
         intent.putExtra(EXTRA_STATE_COLOR, color)
         intent.putExtra(EXTRA_ACTIVE_DIRECTIONS, activeDirections)

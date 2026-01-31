@@ -82,10 +82,12 @@ class MainActivity : ComponentActivity() {
             val label = intent?.getStringExtra(AudioService.EXTRA_STATE_LABEL) 
             val color = intent?.getLongExtra(AudioService.EXTRA_STATE_COLOR, 0)
             val directions = intent?.getIntExtra(AudioService.EXTRA_ACTIVE_DIRECTIONS, 0) ?: 0
+            val isMuted = intent?.getBooleanExtra(AudioService.EXTRA_IS_MUTED, false) ?: false
             
             uiState = uiState.copy(
                 isServiceRunning = isRunning,
                 runningDirections = directions,
+                speakerMuted = isMuted,
                 serviceState = label ?: if (isRunning) "Active" else "Stopped",
                 serviceStateColor = if (color != null && color != 0L) color else if (isRunning) 0xFFFFC107 else 0xFF888888
             )
@@ -187,7 +189,8 @@ class MainActivity : ComponentActivity() {
             screensaverEnabled = settingsRepo.getScreensaverEnabled(),
             screensaverTimeout = settingsRepo.getScreensaverTimeout(),
             screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
-            screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
+            screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
+            muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
         )
 
         // Apply initial keep screen on
@@ -403,6 +406,10 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(micMuted = !uiState.micMuted)
                                 audioService?.setMicMuted(uiState.micMuted)
                             },
+                            onMuteOnMediaButtonChange = {
+                                uiState = uiState.copy(muteOnMediaButton = it)
+                                settingsRepo.saveMuteOnMediaButton(it)
+                            },
                             onResetSettings = {
                                 settingsRepo.resetDefaults()
                                 uiState = uiState.copy(
@@ -420,7 +427,8 @@ class MainActivity : ComponentActivity() {
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),
                                     screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
-                                    screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
+                                    screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
+                                    muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
                                 )
                             },
                             onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
