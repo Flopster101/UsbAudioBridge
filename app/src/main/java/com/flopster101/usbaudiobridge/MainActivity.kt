@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -89,6 +90,7 @@ data class MainUiState(
     val micSourceOption: Int = 6, // 6=VoiceRec (Default/Auto)
     val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
+    val keepScreenOnOption: Boolean = false,
 
     // Status
     val serviceState: String = "Idle",
@@ -236,8 +238,15 @@ class MainActivity : ComponentActivity() {
             activeDirectionsOption = settingsRepo.getActiveDirections(),
             micSourceOption = settingsRepo.getMicSource(),
             notificationEnabled = settingsRepo.getNotificationEnabled(),
-            showKernelNotice = settingsRepo.shouldShowKernelNotice()
+            keepScreenOnOption = settingsRepo.getKeepScreenOn()
         )
+
+        // Apply initial keep screen on
+        if (uiState.keepScreenOnOption) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
 
         // Request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -342,6 +351,15 @@ class MainActivity : ComponentActivity() {
                         settingsRepo.saveNotificationEnabled(it)
                         audioService?.refreshNotification()
                     },
+                    onKeepScreenOnChange = {
+                        uiState = uiState.copy(keepScreenOnOption = it)
+                        settingsRepo.saveKeepScreenOn(it)
+                        if (it) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -354,7 +372,8 @@ class MainActivity : ComponentActivity() {
                             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
                             activeDirectionsOption = settingsRepo.getActiveDirections(),
                             micSourceOption = settingsRepo.getMicSource(),
-                            notificationEnabled = settingsRepo.getNotificationEnabled()
+                            notificationEnabled = settingsRepo.getNotificationEnabled(),
+                            keepScreenOnOption = settingsRepo.getKeepScreenOn()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -447,6 +466,7 @@ fun AppNavigation(
     onActiveDirectionsChange: (Int) -> Unit,
     onMicSourceChange: (Int) -> Unit,
     onNotificationEnabledChange: (Boolean) -> Unit,
+    onKeepScreenOnChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -494,6 +514,7 @@ fun AppNavigation(
                     onActiveDirectionsChange = onActiveDirectionsChange,
                     onMicSourceChange = onMicSourceChange,
                     onNotificationEnabledChange = onNotificationEnabledChange,
+                    onKeepScreenOnChange = onKeepScreenOnChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -821,6 +842,7 @@ fun SettingsScreen(
     onActiveDirectionsChange: (Int) -> Unit,
     onMicSourceChange: (Int) -> Unit,
     onNotificationEnabledChange: (Boolean) -> Unit,
+    onKeepScreenOnChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -1252,6 +1274,44 @@ fun SettingsScreen(
                         Switch(
                             checked = state.notificationEnabled,
                             onCheckedChange = onNotificationEnabledChange
+                        )
+                    }
+                }
+            }
+        }
+
+        // Display
+        item {
+            Text(
+                text = "DISPLAY",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Keep screen on",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Prevent the screen from turning off while the app is open. Might be useful if audio lags when screen is off.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.keepScreenOnOption,
+                            onCheckedChange = onKeepScreenOnChange
                         )
                     }
                 }

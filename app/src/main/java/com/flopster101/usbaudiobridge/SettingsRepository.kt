@@ -40,6 +40,10 @@ class SettingsRepository(context: Context) {
     // Notification enabled
     fun saveNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("notification_enabled", enabled).apply()
     fun getNotificationEnabled(): Boolean = prefs.getBoolean("notification_enabled", true)
+
+    // Keep screen on
+    fun saveKeepScreenOn(enabled: Boolean) = prefs.edit().putBoolean("keep_screen_on", enabled).apply()
+    fun getKeepScreenOn(): Boolean = prefs.getBoolean("keep_screen_on", false)
     
     fun saveOriginalIdentity(manufacturer: String, product: String, serial: String) {
         prefs.edit()
