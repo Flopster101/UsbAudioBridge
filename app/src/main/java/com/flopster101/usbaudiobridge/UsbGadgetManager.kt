@@ -34,6 +34,18 @@ object UsbGadgetManager {
     private val gadgetMutex = Mutex()
 
     /**
+     * Check if root access is granted.
+     */
+    fun isRootGranted(): Boolean {
+        return try {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
      * Check if ADB is currently active by checking the USB config property.
      */
     private fun isAdbCurrentlyActive(): Boolean {
@@ -678,10 +690,10 @@ object UsbGadgetManager {
     }
 
     fun isGadgetActive(): Boolean {
-        val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -q uac2"
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
         return try {
-             p.waitFor() == 0
+            val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -q uac2"
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            p.waitFor() == 0
         } catch (e: Exception) { false }
     }
 

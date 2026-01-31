@@ -22,10 +22,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 
 class MainActivity : ComponentActivity() {
 
@@ -36,6 +42,9 @@ class MainActivity : ComponentActivity() {
     
     // Mutable State Holder
     private var uiState by mutableStateOf(MainUiState())
+    
+    // Root status
+    private var isRootGranted by mutableStateOf<Boolean?>(null)
 
     // Playback device broadcast receiver
     private val playbackDeviceReceiver = object : BroadcastReceiver() {
@@ -211,11 +220,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
-            } else {
-                startServiceAndBind()
             }
-        } else {
-            startServiceAndBind()
         }
 
         // Register Receivers
@@ -225,168 +230,203 @@ class MainActivity : ComponentActivity() {
         ContextCompat.registerReceiver(this, gadgetResultReceiver, IntentFilter(AudioService.ACTION_GADGET_RESULT), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS), ContextCompat.RECEIVER_NOT_EXPORTED)
 
-        startServiceAndBind()
-
         setContent {
+            val coroutineScope = rememberCoroutineScope()
+
+            fun checkRoot() {
+                isRootGranted = null
+                coroutineScope.launch(Dispatchers.IO) {
+                    val granted = UsbGadgetManager.isRootGranted()
+                    withContext(Dispatchers.Main) {
+                        isRootGranted = granted
+                    }
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                checkRoot()
+            }
+            
+            LaunchedEffect(isRootGranted) {
+                if (isRootGranted == true) {
+                    startServiceAndBind()
+                }
+            }
+
             // Basic Material Theme wrapper
             MaterialTheme(
                 colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) 
                     dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
             ) {
-                // First-run kernel notice dialog
-                if (uiState.showKernelNotice) {
-                    KernelNoticeDialog(
-                        onDismiss = { dontShowAgain ->
-                            if (dontShowAgain) {
-                                settingsRepo.setKernelNoticeDismissed()
-                            }
-                            uiState = uiState.copy(showKernelNotice = false)
+                when (isRootGranted) {
+                    null -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
                         }
-                    )
-                }
-                
-                AppNavigation(
-                    state = uiState,
-                    onToggleGadget = { enable ->
-                         if (enable) {
-                             // Set pending state, wait for result broadcast to confirm
-                             uiState = uiState.copy(isGadgetPending = true)
-                             audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
-                         } else {
-                             uiState = uiState.copy(isGadgetEnabled = false, isGadgetPending = true)
-                             audioService?.setGadgetEnabled(false)
-                             audioService?.stopBridge()
-                             // Don't wait for broadcast result for disable
-                         }
-                    },
-                    onToggleCapture = {
-                        if (uiState.isServiceRunning) {
-                             uiState = uiState.copy(isCapturePending = true)
-                             audioService?.stopAudioOnly()
-                        } else {
-                             uiState = uiState.copy(isCapturePending = true)
-                             val perm = android.Manifest.permission.RECORD_AUDIO
-                             if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
-                                 requestPermissionLauncher.launch(perm)
-                             } else {
-                                 startBridgeWithState()
-                             }
+                    }
+                    false -> {
+                        NoRootScreen(onRetry = { checkRoot() })
+                    }
+                    true -> {
+                        // First-run kernel notice dialog
+                        if (uiState.showKernelNotice) {
+                            KernelNoticeDialog(
+                                onDismiss = { dontShowAgain ->
+                                    if (dontShowAgain) {
+                                        settingsRepo.setKernelNoticeDismissed()
+                                    }
+                                    uiState = uiState.copy(showKernelNotice = false)
+                                }
+                            )
                         }
-                    },
-                    onBufferSizeChange = { 
-                        uiState = uiState.copy(bufferSize = it)
-                        settingsRepo.saveBufferSize(it)
-                    },
-                    onPeriodSizeChange = {
-                        uiState = uiState.copy(periodSizeOption = it)
-                        settingsRepo.savePeriodSize(it)
-                    },
-                    onEngineTypeChange = {
-                        uiState = uiState.copy(engineTypeOption = it)
-                        settingsRepo.saveEngineType(it)
-                    },
-                    onSampleRateChange = {
-                        uiState = uiState.copy(sampleRateOption = it)
-                        settingsRepo.saveSampleRate(it)
-                    },
-                    onKeepAdbChange = {
-                        uiState = uiState.copy(keepAdbOption = it)
-                        settingsRepo.saveKeepAdb(it)
-                    },
-                    onAutoRestartChange = {
-                        uiState = uiState.copy(autoRestartOnOutputChange = it)
-                        settingsRepo.saveAutoRestartOnOutputChange(it)
-                    },
-                    onActiveDirectionsChange = {
-                        uiState = uiState.copy(activeDirectionsOption = it)
-                        settingsRepo.saveActiveDirections(it)
-                    },
-                    onMicSourceChange = {
-                         uiState = uiState.copy(micSourceOption = it)
-                         settingsRepo.saveMicSource(it)
-                    },
-                    onNotificationEnabledChange = {
-                        uiState = uiState.copy(notificationEnabled = it)
-                        settingsRepo.saveNotificationEnabled(it)
-                        audioService?.refreshNotification()
-                    },
-                    onKeepScreenOnChange = {
-                        uiState = uiState.copy(keepScreenOnOption = it)
-                        settingsRepo.saveKeepScreenOn(it)
-                        if (it) {
-                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        } else {
-                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                            // Disable screensaver if keep screen on is disabled
-                            if (uiState.screensaverEnabled) {
-                                uiState = uiState.copy(screensaverEnabled = false)
-                                settingsRepo.saveScreensaverEnabled(false)
-                            }
-                        }
-                    },
-                    onScreensaverEnabledChange = {
-                        uiState = uiState.copy(screensaverEnabled = it)
-                        settingsRepo.saveScreensaverEnabled(it)
-                    },
-                    onScreensaverTimeoutChange = {
-                        uiState = uiState.copy(screensaverTimeout = it)
-                        settingsRepo.saveScreensaverTimeout(it)
-                    },
-                    onScreensaverRepositionIntervalChange = {
-                        uiState = uiState.copy(screensaverRepositionInterval = it)
-                        settingsRepo.saveScreensaverRepositionInterval(it)
-                    },
-                    onScreensaverFullscreenChange = {
-                        uiState = uiState.copy(screensaverFullscreen = it)
-                        settingsRepo.saveScreensaverFullscreen(it)
-                    },
-                    onScreensaverActivate = {
-                        uiState = uiState.copy(screensaverActive = true)
-                        screensaverFullscreenActive = uiState.screensaverFullscreen
-                        if (screensaverFullscreenActive) {
-                            // Hide system bars using WindowInsetsController for immersive screensaver experience
-                            windowInsetsController.hide(WindowInsets.Type.systemBars())
-                            windowInsetsController.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                        }
-                    },
-                    onScreensaverDeactivate = {
-                        uiState = uiState.copy(screensaverActive = false)
-                        if (screensaverFullscreenActive) {
-                            // Show system bars using WindowInsetsController - using separate flag to avoid state issues
-                            windowInsetsController.show(WindowInsets.Type.systemBars())
-                            screensaverFullscreenActive = false
-                        }
-                    },
-                    onToggleSpeakerMute = {
-                        uiState = uiState.copy(speakerMuted = !uiState.speakerMuted)
-                        audioService?.setSpeakerMuted(uiState.speakerMuted)
-                    },
-                    onToggleMicMute = {
-                        uiState = uiState.copy(micMuted = !uiState.micMuted)
-                        audioService?.setMicMuted(uiState.micMuted)
-                    },
-                    onResetSettings = {
-                        settingsRepo.resetDefaults()
-                        uiState = uiState.copy(
-                            bufferSize = settingsRepo.getBufferSize(),
-                            periodSizeOption = settingsRepo.getPeriodSize(),
-                            engineTypeOption = settingsRepo.getEngineType(),
-                            sampleRateOption = settingsRepo.getSampleRate(),
-                            keepAdbOption = settingsRepo.getKeepAdb(),
+                        
+                        AppNavigation(
+                            state = uiState,
+                            onToggleGadget = { enable ->
+                                 if (enable) {
+                                     // Set pending state, wait for result broadcast to confirm
+                                     uiState = uiState.copy(isGadgetPending = true)
+                                     audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
+                                 } else {
+                                     uiState = uiState.copy(isGadgetEnabled = false, isGadgetPending = true)
+                                     audioService?.setGadgetEnabled(false)
+                                     audioService?.stopBridge()
+                                     // Don't wait for broadcast result for disable
+                                 }
+                            },
+                            onToggleCapture = {
+                                if (uiState.isServiceRunning) {
+                                     uiState = uiState.copy(isCapturePending = true)
+                                     audioService?.stopAudioOnly()
+                                } else {
+                                     uiState = uiState.copy(isCapturePending = true)
+                                     val perm = android.Manifest.permission.RECORD_AUDIO
+                                     if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
+                                         requestPermissionLauncher.launch(perm)
+                                     } else {
+                                         startBridgeWithState()
+                                     }
+                                }
+                            },
+                            onBufferSizeChange = { 
+                                uiState = uiState.copy(bufferSize = it)
+                                settingsRepo.saveBufferSize(it)
+                            },
+                            onPeriodSizeChange = {
+                                uiState = uiState.copy(periodSizeOption = it)
+                                settingsRepo.savePeriodSize(it)
+                            },
+                            onEngineTypeChange = {
+                                uiState = uiState.copy(engineTypeOption = it)
+                                settingsRepo.saveEngineType(it)
+                            },
+                            onSampleRateChange = {
+                                uiState = uiState.copy(sampleRateOption = it)
+                                settingsRepo.saveSampleRate(it)
+                            },
+                            onKeepAdbChange = {
+                                uiState = uiState.copy(keepAdbOption = it)
+                                settingsRepo.saveKeepAdb(it)
+                            },
+                            onAutoRestartChange = {
+                                uiState = uiState.copy(autoRestartOnOutputChange = it)
+                                settingsRepo.saveAutoRestartOnOutputChange(it)
+                            },
+                            onActiveDirectionsChange = {
+                                uiState = uiState.copy(activeDirectionsOption = it)
+                                settingsRepo.saveActiveDirections(it)
+                            },
+                            onMicSourceChange = {
+                                 uiState = uiState.copy(micSourceOption = it)
+                                 settingsRepo.saveMicSource(it)
+                            },
+                            onNotificationEnabledChange = {
+                                uiState = uiState.copy(notificationEnabled = it)
+                                settingsRepo.saveNotificationEnabled(it)
+                                audioService?.refreshNotification()
+                            },
+                            onKeepScreenOnChange = {
+                                uiState = uiState.copy(keepScreenOnOption = it)
+                                settingsRepo.saveKeepScreenOn(it)
+                                if (it) {
+                                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                                } else {
+                                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                                    // Disable screensaver if keep screen on is disabled
+                                    if (uiState.screensaverEnabled) {
+                                        uiState = uiState.copy(screensaverEnabled = false)
+                                        settingsRepo.saveScreensaverEnabled(false)
+                                    }
+                                }
+                            },
+                            onScreensaverEnabledChange = {
+                                uiState = uiState.copy(screensaverEnabled = it)
+                                settingsRepo.saveScreensaverEnabled(it)
+                            },
+                            onScreensaverTimeoutChange = {
+                                uiState = uiState.copy(screensaverTimeout = it)
+                                settingsRepo.saveScreensaverTimeout(it)
+                            },
+                            onScreensaverRepositionIntervalChange = {
+                                uiState = uiState.copy(screensaverRepositionInterval = it)
+                                settingsRepo.saveScreensaverRepositionInterval(it)
+                            },
+                            onScreensaverFullscreenChange = {
+                                uiState = uiState.copy(screensaverFullscreen = it)
+                                settingsRepo.saveScreensaverFullscreen(it)
+                            },
+                            onScreensaverActivate = {
+                                uiState = uiState.copy(screensaverActive = true)
+                                screensaverFullscreenActive = uiState.screensaverFullscreen
+                                if (screensaverFullscreenActive) {
+                                    // Hide system bars using WindowInsetsController for immersive screensaver experience
+                                    windowInsetsController.hide(WindowInsets.Type.systemBars())
+                                    windowInsetsController.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                                }
+                            },
+                            onScreensaverDeactivate = {
+                                uiState = uiState.copy(screensaverActive = false)
+                                if (screensaverFullscreenActive) {
+                                    // Show system bars using WindowInsetsController - using separate flag to avoid state issues
+                                    windowInsetsController.show(WindowInsets.Type.systemBars())
+                                    screensaverFullscreenActive = false
+                                }
+                            },
+                            onToggleSpeakerMute = {
+                                uiState = uiState.copy(speakerMuted = !uiState.speakerMuted)
+                                audioService?.setSpeakerMuted(uiState.speakerMuted)
+                            },
+                            onToggleMicMute = {
+                                uiState = uiState.copy(micMuted = !uiState.micMuted)
+                                audioService?.setMicMuted(uiState.micMuted)
+                            },
+                            onResetSettings = {
+                                settingsRepo.resetDefaults()
+                                uiState = uiState.copy(
+                                    bufferSize = settingsRepo.getBufferSize(),
+                                    periodSizeOption = settingsRepo.getPeriodSize(),
+                                    engineTypeOption = settingsRepo.getEngineType(),
+                                    sampleRateOption = settingsRepo.getSampleRate(),
+                                    keepAdbOption = settingsRepo.getKeepAdb(),
 
-                            autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
-                            activeDirectionsOption = settingsRepo.getActiveDirections(),
-                            micSourceOption = settingsRepo.getMicSource(),
-                            notificationEnabled = settingsRepo.getNotificationEnabled(),
-                            keepScreenOnOption = settingsRepo.getKeepScreenOn(),
-                            screensaverEnabled = settingsRepo.getScreensaverEnabled(),
-                            screensaverTimeout = settingsRepo.getScreensaverTimeout(),
-                            screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
-                            screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
+                                    autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
+                                    activeDirectionsOption = settingsRepo.getActiveDirections(),
+                                    micSourceOption = settingsRepo.getMicSource(),
+                                    notificationEnabled = settingsRepo.getNotificationEnabled(),
+                                    keepScreenOnOption = settingsRepo.getKeepScreenOn(),
+                                    screensaverEnabled = settingsRepo.getScreensaverEnabled(),
+                                    screensaverTimeout = settingsRepo.getScreensaverTimeout(),
+                                    screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
+                                    screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
+                                )
+                            },
+                            onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
                         )
-                    },
-                    onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
-                )
+                    }
+                }
             }
         }
     }
@@ -432,7 +472,9 @@ class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startServiceAndBind()
+            if (isRootGranted == true) {
+                startServiceAndBind()
+            }
         }
     }
 
