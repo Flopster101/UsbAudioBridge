@@ -19,7 +19,7 @@ A simple tool to turn your Android device into a USB Soundcard for any USB host 
 - [ ] Test Magisk and Apatch support (implemented, untested)
 - [ ] Improve performance (crackling is present on older devices)
 - [ ] Support more intrusive USB Gadget HALs (maybe disable HAL before enabling gadget?)
-- [ ] Notice for when root is not found (currently crashes app)
+- [x] Notice for when root is not found (currently crashes app)
 - [ ] Properly restore the previous gadget state accurately after disabling
 
 ## License
