@@ -74,6 +74,7 @@ data class MainUiState(
     val isGadgetEnabled: Boolean = false,
     val isGadgetPending: Boolean = false,  // Gadget operation in progress?
     val isServiceRunning: Boolean = false, // Streaming active?
+    val isCapturePending: Boolean = false, // Capture operation in progress?
     val runningDirections: Int = 0,        // Active directions reported by service
     val isAppBound: Boolean = false,       // Service bound?
     
@@ -144,6 +145,9 @@ class MainActivity : ComponentActivity() {
                 serviceState = label ?: if (isRunning) "Active" else "Stopped",
                 serviceStateColor = if (color != null && color != 0L) color else if (isRunning) 0xFFFFC107 else 0xFF888888
             )
+
+            // Clear capture pending when state changes
+            uiState = uiState.copy(isCapturePending = false)
 
             if (!isRunning) {
                 uiState = uiState.copy(
@@ -289,8 +293,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onToggleCapture = {
                         if (uiState.isServiceRunning) {
+                             uiState = uiState.copy(isCapturePending = true)
                              audioService?.stopAudioOnly()
                         } else {
+                             uiState = uiState.copy(isCapturePending = true)
                              val perm = android.Manifest.permission.RECORD_AUDIO
                              if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
                                  requestPermissionLauncher.launch(perm)
@@ -571,10 +577,15 @@ fun HomeScreen(
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = onToggleCapture,
-                            enabled = state.isGadgetEnabled,
+                            enabled = state.isGadgetEnabled && !state.isCapturePending,
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
-                            Text(if (state.isServiceRunning) "Stop Audio Capture" else "Start Audio Capture")
+                            val buttonText = when {
+                                state.isCapturePending -> if (state.isServiceRunning) "Stopping..." else "Starting..."
+                                state.isServiceRunning -> "Stop Audio Capture"
+                                else -> "Start Audio Capture"
+                            }
+                            Text(buttonText)
                         }
                     }
                 }
