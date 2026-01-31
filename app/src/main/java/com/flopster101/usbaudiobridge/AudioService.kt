@@ -126,6 +126,20 @@ class AudioService : Service() {
         }
     }
 
+    fun setSpeakerMuted(muted: Boolean) {
+        try {
+            audioTrack?.setVolume(if (muted) 0f else 1f)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting speaker mute", e)
+        }
+    }
+
+    fun setMicMuted(muted: Boolean) {
+        // For mic mute, since it's capture, we can zero the buffer in native code
+        // For now, implement in C++ if needed
+        // TODO: Implement mic mute
+    }
+
     external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int, activeDirections: Int, micSource: Int)
     external fun stopAudioBridge()
 

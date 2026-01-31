@@ -91,6 +91,8 @@ data class MainUiState(
     val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
     val keepScreenOnOption: Boolean = false,
+    val speakerMuted: Boolean = false,
+    val micMuted: Boolean = false,
 
     // Status
     val serviceState: String = "Idle",
@@ -360,6 +362,14 @@ class MainActivity : ComponentActivity() {
                             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                         }
                     },
+                    onToggleSpeakerMute = {
+                        uiState = uiState.copy(speakerMuted = !uiState.speakerMuted)
+                        audioService?.setSpeakerMuted(uiState.speakerMuted)
+                    },
+                    onToggleMicMute = {
+                        uiState = uiState.copy(micMuted = !uiState.micMuted)
+                        audioService?.setMicMuted(uiState.micMuted)
+                    },
                     onResetSettings = {
                         settingsRepo.resetDefaults()
                         uiState = uiState.copy(
@@ -467,6 +477,8 @@ fun AppNavigation(
     onMicSourceChange: (Int) -> Unit,
     onNotificationEnabledChange: (Boolean) -> Unit,
     onKeepScreenOnChange: (Boolean) -> Unit,
+    onToggleSpeakerMute: () -> Unit,
+    onToggleMicMute: () -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -499,6 +511,8 @@ fun AppNavigation(
                     state = state,
                     onToggleGadget = onToggleGadget,
                     onToggleCapture = onToggleCapture,
+                    onToggleSpeakerMute = onToggleSpeakerMute,
+                    onToggleMicMute = onToggleMicMute,
                     onToggleLogs = onToggleLogs
                 )
             }
@@ -560,6 +574,8 @@ fun HomeScreen(
     state: MainUiState,
     onToggleGadget: (Boolean) -> Unit,
     onToggleCapture: () -> Unit,
+    onToggleSpeakerMute: () -> Unit,
+    onToggleMicMute: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
         LazyColumn(
@@ -630,12 +646,24 @@ fun HomeScreen(
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Active bridges",
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            // Text column
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Active bridges",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                
+                                // Show hint when icons are visible
+                                if (state.isServiceRunning && ((state.runningDirections and 1) != 0 || (state.runningDirections and 2) != 0)) {
+                                    Text(
+                                        text = "Tap icons to mute/unmute",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
                             
                             if (!state.isServiceRunning) {
                                 Text(
@@ -651,18 +679,22 @@ fun HomeScreen(
 
                                     if (isSpeaker) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_volume_up),
-                                            contentDescription = "Speaker",
+                                            painter = painterResource(if (state.speakerMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
+                                            contentDescription = if (state.speakerMuted) "Unmute Speaker" else "Mute Speaker",
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clickable { onToggleSpeakerMute() }
                                         )
                                     }
                                     if (isMic) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_mic),
-                                            contentDescription = "Microphone",
+                                            painter = painterResource(if (state.micMuted) R.drawable.ic_mic_off else R.drawable.ic_mic),
+                                            contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clickable { onToggleMicMute() }
                                         )
                                     }
                                 }
