@@ -386,6 +386,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(Modifier.width(16.dp))
                         Switch(
                             checked = state.keepAdbOption,
                             onCheckedChange = onKeepAdbChange
@@ -492,6 +493,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(Modifier.width(16.dp))
                         Switch(
                             checked = state.notificationEnabled,
                             onCheckedChange = onNotificationEnabledChange
@@ -530,6 +532,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(Modifier.width(16.dp))
                         Switch(
                             checked = state.keepScreenOnOption,
                             onCheckedChange = onKeepScreenOnChange
@@ -560,6 +563,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(Modifier.width(16.dp))
                         Switch(
                             checked = state.screensaverEnabled,
                             onCheckedChange = onScreensaverEnabledChange,
@@ -630,6 +634,7 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Spacer(Modifier.width(16.dp))
                             Switch(
                                 checked = state.screensaverFullscreen,
                                 onCheckedChange = onScreensaverFullscreenChange
