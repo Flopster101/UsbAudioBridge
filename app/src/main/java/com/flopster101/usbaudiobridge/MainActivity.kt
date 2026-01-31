@@ -10,6 +10,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,7 +53,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +105,11 @@ data class MainUiState(
     val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
     val keepScreenOnOption: Boolean = false,
+    val screensaverEnabled: Boolean = false,
+    val screensaverTimeout: Int = 15,
+    val screensaverRepositionInterval: Int = 5,
+    val screensaverFullscreen: Boolean = true,
+    val screensaverActive: Boolean = false,
     val speakerMuted: Boolean = false,
     val micMuted: Boolean = false,
 
@@ -112,6 +131,8 @@ data class MainUiState(
 
 class MainActivity : ComponentActivity() {
 
+    private var screensaverFullscreenActive = false // Tracks if fullscreen was enabled when screensaver activated
+    private lateinit var windowInsetsController: WindowInsetsController
     private var audioService: AudioService? = null
     private lateinit var settingsRepo: SettingsRepository
     
@@ -228,6 +249,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Initialize WindowInsetsController for modern system UI control (screensaver fullscreen)
+        windowInsetsController = window.insetsController!!
+
         settingsRepo = SettingsRepository(this)
         // Load settings
         uiState = uiState.copy(
@@ -240,7 +264,11 @@ class MainActivity : ComponentActivity() {
             activeDirectionsOption = settingsRepo.getActiveDirections(),
             micSourceOption = settingsRepo.getMicSource(),
             notificationEnabled = settingsRepo.getNotificationEnabled(),
-            keepScreenOnOption = settingsRepo.getKeepScreenOn()
+            keepScreenOnOption = settingsRepo.getKeepScreenOn(),
+            screensaverEnabled = settingsRepo.getScreensaverEnabled(),
+            screensaverTimeout = settingsRepo.getScreensaverTimeout(),
+            screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
+            screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
         )
 
         // Apply initial keep screen on
@@ -360,6 +388,44 @@ class MainActivity : ComponentActivity() {
                             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                         } else {
                             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            // Disable screensaver if keep screen on is disabled
+                            if (uiState.screensaverEnabled) {
+                                uiState = uiState.copy(screensaverEnabled = false)
+                                settingsRepo.saveScreensaverEnabled(false)
+                            }
+                        }
+                    },
+                    onScreensaverEnabledChange = {
+                        uiState = uiState.copy(screensaverEnabled = it)
+                        settingsRepo.saveScreensaverEnabled(it)
+                    },
+                    onScreensaverTimeoutChange = {
+                        uiState = uiState.copy(screensaverTimeout = it)
+                        settingsRepo.saveScreensaverTimeout(it)
+                    },
+                    onScreensaverRepositionIntervalChange = {
+                        uiState = uiState.copy(screensaverRepositionInterval = it)
+                        settingsRepo.saveScreensaverRepositionInterval(it)
+                    },
+                    onScreensaverFullscreenChange = {
+                        uiState = uiState.copy(screensaverFullscreen = it)
+                        settingsRepo.saveScreensaverFullscreen(it)
+                    },
+                    onScreensaverActivate = {
+                        uiState = uiState.copy(screensaverActive = true)
+                        screensaverFullscreenActive = uiState.screensaverFullscreen
+                        if (screensaverFullscreenActive) {
+                            // Hide system bars using WindowInsetsController for immersive screensaver experience
+                            windowInsetsController.hide(WindowInsets.Type.systemBars())
+                            windowInsetsController.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        }
+                    },
+                    onScreensaverDeactivate = {
+                        uiState = uiState.copy(screensaverActive = false)
+                        if (screensaverFullscreenActive) {
+                            // Show system bars using WindowInsetsController - using separate flag to avoid state issues
+                            windowInsetsController.show(WindowInsets.Type.systemBars())
+                            screensaverFullscreenActive = false
                         }
                     },
                     onToggleSpeakerMute = {
@@ -383,7 +449,11 @@ class MainActivity : ComponentActivity() {
                             activeDirectionsOption = settingsRepo.getActiveDirections(),
                             micSourceOption = settingsRepo.getMicSource(),
                             notificationEnabled = settingsRepo.getNotificationEnabled(),
-                            keepScreenOnOption = settingsRepo.getKeepScreenOn()
+                            keepScreenOnOption = settingsRepo.getKeepScreenOn(),
+                            screensaverEnabled = settingsRepo.getScreensaverEnabled(),
+                            screensaverTimeout = settingsRepo.getScreensaverTimeout(),
+                            screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
+                            screensaverFullscreen = settingsRepo.getScreensaverFullscreen()
                         )
                     },
                     onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }
@@ -477,6 +547,12 @@ fun AppNavigation(
     onMicSourceChange: (Int) -> Unit,
     onNotificationEnabledChange: (Boolean) -> Unit,
     onKeepScreenOnChange: (Boolean) -> Unit,
+    onScreensaverEnabledChange: (Boolean) -> Unit,
+    onScreensaverTimeoutChange: (Int) -> Unit,
+    onScreensaverRepositionIntervalChange: (Int) -> Unit,
+    onScreensaverFullscreenChange: (Boolean) -> Unit,
+    onScreensaverActivate: () -> Unit,
+    onScreensaverDeactivate: () -> Unit,
     onToggleSpeakerMute: () -> Unit,
     onToggleMicMute: () -> Unit,
     onResetSettings: () -> Unit,
@@ -487,8 +563,31 @@ fun AppNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    // Screensaver timer logic
+    val screensaverEnabled = state.keepScreenOnOption && state.screensaverEnabled
+    var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    // Reset timer on navigation
+    LaunchedEffect(currentRoute) {
+        lastInteractionTime = System.currentTimeMillis()
+    }
+
+    val myNestedScrollConnection = remember(scrollBehavior.nestedScrollConnection) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                lastInteractionTime = System.currentTimeMillis()
+                return scrollBehavior.nestedScrollConnection.onPreScroll(available, source)
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                lastInteractionTime = System.currentTimeMillis()
+                return scrollBehavior.nestedScrollConnection.onPostScroll(consumed, available, source)
+            }
+        }
+    }
+
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(myNestedScrollConnection),
         topBar = {
             if (currentRoute != "about") {
                 LargeTopAppBar(
@@ -529,6 +628,10 @@ fun AppNavigation(
                     onMicSourceChange = onMicSourceChange,
                     onNotificationEnabledChange = onNotificationEnabledChange,
                     onKeepScreenOnChange = onKeepScreenOnChange,
+                    onScreensaverEnabledChange = onScreensaverEnabledChange,
+                    onScreensaverTimeoutChange = onScreensaverTimeoutChange,
+                    onScreensaverRepositionIntervalChange = onScreensaverRepositionIntervalChange,
+                    onScreensaverFullscreenChange = onScreensaverFullscreenChange,
                     onResetSettings = onResetSettings
                 )
             }
@@ -536,6 +639,34 @@ fun AppNavigation(
                 AboutScreen()
             }
         }
+    }
+
+    // Screensaver timer
+    LaunchedEffect(screensaverEnabled, state.screensaverTimeout) {
+        if (!screensaverEnabled) return@LaunchedEffect
+        
+        lastInteractionTime = System.currentTimeMillis()  // Reset timer when enabled
+        
+        while (true) {
+            delay(1000) // Check every second
+            val timeSinceLastInteraction = System.currentTimeMillis() - lastInteractionTime
+            val shouldActivate = timeSinceLastInteraction >= (state.screensaverTimeout * 1000L)
+            
+            if (shouldActivate && !state.screensaverActive) {
+                onScreensaverActivate()
+            }
+        }
+    }
+    
+    // Screensaver overlay
+    if (state.screensaverActive) {
+        ScreensaverOverlay(
+            state = state,
+            onDismiss = {
+                onScreensaverDeactivate()
+                lastInteractionTime = System.currentTimeMillis()
+            }
+        )
     }
 }
 
@@ -875,6 +1006,10 @@ fun SettingsScreen(
     onMicSourceChange: (Int) -> Unit,
     onNotificationEnabledChange: (Boolean) -> Unit,
     onKeepScreenOnChange: (Boolean) -> Unit,
+    onScreensaverEnabledChange: (Boolean) -> Unit,
+    onScreensaverTimeoutChange: (Int) -> Unit,
+    onScreensaverRepositionIntervalChange: (Int) -> Unit,
+    onScreensaverFullscreenChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -1350,6 +1485,107 @@ fun SettingsScreen(
             }
         }
 
+        // Screensaver
+        item {
+            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Enable screensaver",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Show a screensaver to prevent burn-in on OLED displays and image retention on LCDs. Only available when 'Keep screen on' is enabled.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.screensaverEnabled,
+                            onCheckedChange = onScreensaverEnabledChange,
+                            enabled = state.keepScreenOnOption
+                        )
+                    }
+                    
+                    if (state.screensaverEnabled && state.keepScreenOnOption) {
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Timeout: ${state.screensaverTimeout}s",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            Slider(
+                                value = ((state.screensaverTimeout - 5) / 5).toFloat(),
+                                onValueChange = { val snapped = it.roundToInt(); val timeout = 5 + snapped * 5; onScreensaverTimeoutChange(timeout) },
+                                valueRange = 0f..11f,
+                                steps = 11,
+                                modifier = Modifier.weight(2f)
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Reposition: ${state.screensaverRepositionInterval}s",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            Slider(
+                                value = ((state.screensaverRepositionInterval - 5) / 5).toFloat(),
+                                onValueChange = { val snapped = it.roundToInt(); val interval = 5 + snapped * 5; onScreensaverRepositionIntervalChange(interval) },
+                                valueRange = 0f..5f,
+                                steps = 5,
+                                modifier = Modifier.weight(2f)
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Fullscreen mode",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Hide system UI elements when screensaver is active",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = state.screensaverFullscreen,
+                                onCheckedChange = onScreensaverFullscreenChange
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Reset
         item {
             Spacer(Modifier.height(16.dp))
@@ -1362,6 +1598,119 @@ fun SettingsScreen(
             ) {
                 Text("Reset to defaults")
             }
+        }
+    }
+}
+
+@Composable
+fun ScreensaverOverlay(
+    state: MainUiState,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    
+    var contentSize by remember { mutableStateOf<IntSize>(IntSize.Zero) }
+    
+    var isPositioned by remember(state.screensaverActive) { mutableStateOf(false) }
+    
+    // Start centered (approximate, will be corrected when content size is known)
+    var position by remember(state.screensaverActive) {
+        val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
+        val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+        val approxContentWidth = 300f
+        val approxContentHeight = 200f
+        val centerX = maxOf(0f, (screenWidth - approxContentWidth) / 2f)
+        val centerY = maxOf(0f, (screenHeight - approxContentHeight) / 2f)
+        mutableStateOf(Pair(centerX, centerY))
+    }
+    
+    LaunchedEffect(contentSize) {
+        if (contentSize != IntSize.Zero) {
+            val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
+            val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+            
+            val centerX = maxOf(0f, (screenWidth - contentSize.width) / 2f)
+            val centerY = maxOf(0f, (screenHeight - contentSize.height) / 2f)
+            
+            position = Pair(centerX, centerY)
+            isPositioned = true
+        }
+    }
+    
+    // Random repositioning
+    LaunchedEffect(state.screensaverRepositionInterval) {
+        while (true) {
+            delay(state.screensaverRepositionInterval * 1000L)
+            if (contentSize != IntSize.Zero) {
+                val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
+                val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+                
+                val maxX = maxOf(0f, screenWidth - contentSize.width.toFloat())
+                val maxY = maxOf(0f, screenHeight - contentSize.height.toFloat())
+                
+                val randomX = kotlin.random.Random.nextFloat() * maxX
+                val randomY = kotlin.random.Random.nextFloat() * maxY
+                
+                position = Pair(randomX, randomY)
+            }
+        }
+    }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable { onDismiss() }
+    ) {
+        // Content positioned randomly
+        Column(
+            modifier = Modifier
+                .offset { if (isPositioned) IntOffset(position.first.toInt(), position.second.toInt()) else IntOffset(-9999, -9999) }
+                .onSizeChanged { contentSize = it }
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Logo
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(96.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_usb),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxSize(),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            
+            // Title
+            Text(
+                "USB Audio Bridge",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            
+            // State
+            Text(
+                "State: ${state.serviceState}",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            
+            // Sample rate
+            Text(
+                "Sample rate: ${state.sampleRate}",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

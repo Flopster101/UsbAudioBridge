@@ -44,6 +44,19 @@ class SettingsRepository(context: Context) {
     // Keep screen on
     fun saveKeepScreenOn(enabled: Boolean) = prefs.edit().putBoolean("keep_screen_on", enabled).apply()
     fun getKeepScreenOn(): Boolean = prefs.getBoolean("keep_screen_on", false)
+
+    // Screensaver
+    fun saveScreensaverEnabled(enabled: Boolean) = prefs.edit().putBoolean("screensaver_enabled", enabled).apply()
+    fun getScreensaverEnabled(): Boolean = prefs.getBoolean("screensaver_enabled", false)
+
+    fun saveScreensaverTimeout(seconds: Int) = prefs.edit().putInt("screensaver_timeout", seconds).apply()
+    fun getScreensaverTimeout(): Int = prefs.getInt("screensaver_timeout", 15) // Default 15 seconds
+
+    fun saveScreensaverRepositionInterval(seconds: Int) = prefs.edit().putInt("screensaver_reposition_interval", seconds).apply()
+    fun getScreensaverRepositionInterval(): Int = prefs.getInt("screensaver_reposition_interval", 5) // Default 5 seconds
+
+    fun saveScreensaverFullscreen(enabled: Boolean) = prefs.edit().putBoolean("screensaver_fullscreen", enabled).apply()
+    fun getScreensaverFullscreen(): Boolean = prefs.getBoolean("screensaver_fullscreen", true) // Default true
     
     fun saveOriginalIdentity(manufacturer: String, product: String, serial: String) {
         prefs.edit()
