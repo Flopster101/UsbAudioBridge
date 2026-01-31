@@ -89,9 +89,6 @@ class AudioService : Service() {
                 .setTransferMode(android.media.AudioTrack.MODE_STREAM)
                 .build()
             
-            // Apply current mute state
-            audioTrack?.setVolume(if (isSpeakerMuted) 0f else 1f)
-            
             return 1 // Success
         } catch (e: Exception) {
             Log.e(TAG, "AudioTrack init failed", e)
@@ -135,7 +132,7 @@ class AudioService : Service() {
     fun setSpeakerMuted(muted: Boolean) {
         isSpeakerMuted = muted
         try {
-            audioTrack?.setVolume(if (muted) 0f else 1f)
+            setNativeSpeakerMute(muted)
             updateMediaSessionState()
             updateUiState()
         } catch (e: Exception) {
@@ -144,13 +141,18 @@ class AudioService : Service() {
     }
 
     fun setMicMuted(muted: Boolean) {
-        // For mic mute, since it's capture, we can zero the buffer in native code
-        // For now, implement in C++ if needed
-        // TODO: Implement mic mute
+        try {
+            setNativeMicMute(muted)
+            // No UI state update needed for mic yet besides the toggle itself which tracks it
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting mic mute", e)
+        }
     }
 
     external fun startAudioBridge(card: Int, device: Int, bufferSize: Int, periodSize: Int, engineType: Int, sampleRate: Int, activeDirections: Int, micSource: Int)
     external fun stopAudioBridge()
+    external fun setNativeSpeakerMute(muted: Boolean)
+    external fun setNativeMicMute(muted: Boolean)
 
     // Called from C++ JNI
     fun onNativeLog(msg: String) {

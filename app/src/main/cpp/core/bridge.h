@@ -9,6 +9,8 @@
 // Global Execution State
 extern std::atomic<bool> isRunning;
 extern std::atomic<bool> isFinished;  // Synchronization flag
+extern std::atomic<bool> isSpeakerMuted;
+extern std::atomic<bool> isMicMuted;
 extern std::thread bridgeThread;
 
 // Main Bridge Task

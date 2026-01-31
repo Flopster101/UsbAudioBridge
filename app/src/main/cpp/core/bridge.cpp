@@ -19,6 +19,8 @@
 // Define Globals
 std::atomic<bool> isRunning{false};
 std::atomic<bool> isFinished{true};
+std::atomic<bool> isSpeakerMuted{false};
+std::atomic<bool> isMicMuted{false};
 std::thread bridgeThread;
 
 // --- Capture Thread ---
@@ -212,6 +214,9 @@ void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
   while (isRunning) {
     size_t readBytes = inputEngine->read(buffer.data(), buffer_bytes);
     if (readBytes > 0) {
+      if (isMicMuted) {
+        std::memset(buffer.data(), 0, readBytes);
+      }
       int err = pcm_write(pcm, buffer.data(), readBytes);
       if (err) {
         LOGE("[Native] PCM Write Error: %s", pcm_get_error(pcm));
@@ -339,6 +344,10 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
         reportStateToJava(3); // 3 = STREAMING
         reportStatsToJava(rate, actual_period_size, (int)deep_buffer_frames);
         stats_counter = 0;
+      }
+
+      if (isSpeakerMuted) {
+        std::memset(p_buf.data(), 0, read_bytes);
       }
 
       engine->write(p_buf.data(), read_bytes);

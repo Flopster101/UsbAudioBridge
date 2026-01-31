@@ -49,3 +49,15 @@ Java_com_flopster101_usbaudiobridge_AudioService_stopAudioBridge(
   isRunning = false;
   LOGD("[Native] Stop command received.");
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_usbaudiobridge_AudioService_setNativeSpeakerMute(
+    JNIEnv *env, jobject /* this */, jboolean muted) {
+    isSpeakerMuted = muted;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_usbaudiobridge_AudioService_setNativeMicMute(
+    JNIEnv *env, jobject /* this */, jboolean muted) {
+    isMicMuted = muted;
+}
