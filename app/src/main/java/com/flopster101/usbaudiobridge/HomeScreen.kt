@@ -309,8 +309,13 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
                     ) {
                         val logScroll = rememberScrollState()
+                        var previousMaxValue by remember { mutableIntStateOf(0) }
+
                         LaunchedEffect(state.logText) {
-                            logScroll.animateScrollTo(logScroll.maxValue)
+                            if (previousMaxValue == 0 || logScroll.value >= previousMaxValue - 50) {
+                                logScroll.animateScrollTo(logScroll.maxValue)
+                            }
+                            previousMaxValue = logScroll.maxValue
                         }
                         
                         val nestedScrollInterop = remember {
