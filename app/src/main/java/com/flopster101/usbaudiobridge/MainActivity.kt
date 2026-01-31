@@ -1722,6 +1722,35 @@ fun ScreensaverOverlay(
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
+
+                // Bridge icons (centered, show only active bridges)
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    val isSpeaker = (state.runningDirections and 1) != 0
+                    val isMic = (state.runningDirections and 2) != 0
+                    if (isSpeaker) {
+                        Icon(
+                            painter = painterResource(if (state.speakerMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
+                            contentDescription = if (state.speakerMuted) "Unmute Speaker" else "Mute Speaker",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    if (isSpeaker && isMic) {
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    if (isMic) {
+                        Icon(
+                            painter = painterResource(if (state.micMuted) R.drawable.ic_mic_off else R.drawable.ic_mic),
+                            contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
         }
     }
 }
