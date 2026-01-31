@@ -231,8 +231,8 @@ object UsbGadgetManager {
         }
     }
 
-    private fun getSerialNumberForRate(rate: Int): String {
-        return "UAM-SR$rate"
+    private fun getSerialNumberForRate(rate: Int, deviceSerial: String): String {
+        return "UAM-SR$rate-$deviceSerial"
     }
 
     suspend fun enableGadget(
@@ -273,7 +273,8 @@ object UsbGadgetManager {
         // Anti-Interference: Stop USB HAL if running
         stopUsbHal(logCallback, settingsRepo)
         
-        // Backup original strings if not already done
+        var deviceSerial = "UNKNOWN"
+
         // Backup original strings if not already done
         if (settingsRepo != null) {
             val (savedMan, savedProd, savedSerial) = settingsRepo.getOriginalIdentity()
@@ -290,27 +291,33 @@ object UsbGadgetManager {
                     
                     if (currProd.isNotEmpty() && !currProd.contains("Audio Bridge") && !currMan.contains("FloppyKernel")) {
                         settingsRepo.saveOriginalIdentity(currMan, currProd, currSerial)
+                        deviceSerial = currSerial
                         logCallback("[Gadget] Backed up original identity: $currMan - $currProd ($currSerial)")
                     } else {
                         val pModel = Runtime.getRuntime().exec("getprop ro.product.model")
                         val fallbackProd = pModel.inputStream.bufferedReader().readText().trim()
                         val pBrand = Runtime.getRuntime().exec("getprop ro.product.manufacturer")
                         val fallbackMan = pBrand.inputStream.bufferedReader().readText().trim()
-                        val pSer = Runtime.getRuntime().exec("getprop ro.serialno")
+                        
+                        // Try getting serial via su since app user likely can't read it
+                        val pSer = Runtime.getRuntime().exec(arrayOf("su", "-c", "getprop ro.serialno"))
                         val fallbackSerial = pSer.inputStream.bufferedReader().readText().trim()
                         
                         settingsRepo.saveOriginalIdentity(fallbackMan, fallbackProd, fallbackSerial)
+                        deviceSerial = fallbackSerial
                         logCallback("[Gadget] Backed up identity from props: $fallbackMan - $fallbackProd ($fallbackSerial)")
                     }
                 } catch (e: Exception) {
                     logCallback("[Gadget] Failed to backup strings: ${e.message}")
                 }
+            } else {
+                deviceSerial = savedSerial
             }
         }
         
         val bcdDevice = getBcdDeviceForRate(sampleRate)
         val pid = getPidForRate(sampleRate)
-        val serial = getSerialNumberForRate(sampleRate)
+        val serial = getSerialNumberForRate(sampleRate, deviceSerial)
         
         val needPreserveAdb = keepAdb && adbWasActive && ffsAdbExists
         
