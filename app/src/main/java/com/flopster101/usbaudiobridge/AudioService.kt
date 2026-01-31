@@ -157,6 +157,17 @@ class AudioService : Service() {
         }
     }
 
+    // Called from C++ JNI when bridge finishes normally
+    fun onNativeFinished() {
+        serviceScope.launch {
+            Log.d(TAG, "Bridge finished normally")
+            isBridgeRunning = false
+            lastNativeState = STATE_STOPPED
+            updateNotification(getStatusText(), false)
+            updateUiState()
+        }
+    }
+
     // Called from C++ JNI
     fun onNativeThreadStart(tid: Int) {
         serviceScope.launch(Dispatchers.IO) {
@@ -352,6 +363,11 @@ class AudioService : Service() {
         if (lastNativeState == STATE_ERROR) {
             broadcastState("Error ($lastErrorMsg)", 0xFFF44336) // Red
             return
+        }
+
+        // If bridge is marked as running but native state indicates stopped, correct it
+        if (isBridgeRunning && lastNativeState == STATE_STOPPED) {
+            isBridgeRunning = false
         }
 
         if (!isBridgeRunning) {
