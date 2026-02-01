@@ -450,14 +450,31 @@ object UsbGadgetManager {
             return false
         }
     }
+    private fun getAvailableUdcControllers(): List<String> {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls /sys/class/udc"))
+            val output = p.inputStream.bufferedReader().readText().trim()
+            if (output.isEmpty()) emptyList() else output.lines().filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun getPreferredUdcController(): String? {
+        val controllers = getAvailableUdcControllers()
+        if (controllers.isEmpty()) return null
+        
+        // Prefer non-dummy controllers (e.g. musb-hdrc, dwc3, etc.)
+        val realController = controllers.firstOrNull { !it.contains("dummy", ignoreCase = true) }
+        return realController ?: controllers.first()
+    }
     
     private fun bindGadgetWithRetry(logCallback: (String) -> Unit): Boolean {
         for (i in 1..5) {
              try {
-                 val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls /sys/class/udc | head -n 1"))
-                 val udcName = p.inputStream.bufferedReader().readText().trim()
+                 val udcName = getPreferredUdcController()
                  
-                 if (udcName.isEmpty()) {
+                 if (udcName == null) {
                      logCallback("[Gadget] Error: No UDC controller found.")
                      return false
                  }
@@ -536,9 +553,8 @@ object UsbGadgetManager {
         
         // MTK Specific: Reset device mode
         try {
-            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls /sys/class/udc | head -n 1"))
-            val udcName = p.inputStream.bufferedReader().readText().trim()
-            if (udcName.isNotEmpty()) {
+            val udcName = getPreferredUdcController()
+            if (udcName != null) {
                 configureMtkMode(udcName, false, logCallback)
             }
         } catch (e: Exception) {
