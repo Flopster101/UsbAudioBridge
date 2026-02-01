@@ -466,13 +466,8 @@ object UsbGadgetManager {
             configCommands.add("ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1")
         }
         
-        if (!runRootCommands(configCommands, logCallback)) {
-            logCallback("[Gadget] Failed to configure gadget structure.")
-            return false
-        }
-        
-        // Verify kernel support
-        if (!runRootCommand("test -f $GADGET_ROOT/functions/uac2.0/p_srate", {})) {
+        if (!runRootCommands(configCommands, logCallback) ||
+            !runRootCommand("test -f $GADGET_ROOT/functions/uac2.0/p_srate", {})) {
              logCallback("[Gadget] Error: Your kernel does not support UAC2 (USB Audio Class 2).")
              logCallback("[Gadget] This feature requires CONFIG_USB_CONFIGFS_F_UAC2 enabled in kernel.")
              return false

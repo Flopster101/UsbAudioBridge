@@ -240,3 +240,53 @@ fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
         }
     )
 }
+
+@Composable
+fun NoUac2SupportDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error
+            )
+        },
+        title = {
+            Text("Kernel support missing")
+        },
+        text = {
+            Column {
+                Text(
+                    "Setup failed because your device's kernel does not support UAC2 (USB Audio Class 2).",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    "This is normal in older kernels (<=4.19). To fix this, the kernel must be rebuilt with:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Text(
+                    "CONFIG_USB_CONFIGFS_F_UAC2=y",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                
+                Text(
+                    "Rebuild it yourself or ask your kernel/ROM maintainer to do it.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}

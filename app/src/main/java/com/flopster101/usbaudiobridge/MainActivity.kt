@@ -73,6 +73,10 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra(AudioService.EXTRA_MSG) ?: return
             appendLog(msg)
+            
+            if (msg.contains("Your kernel does not support UAC2")) {
+                uiState = uiState.copy(showNoUac2Error = true)
+            }
         }
     }
 
@@ -357,6 +361,13 @@ class MainActivity : ComponentActivity() {
                                     }
                                     uiState = uiState.copy(showOldKernelNotice = false)
                                 }
+                            )
+                        }
+                        
+                        // Missing UAC2 support error
+                        if (uiState.showNoUac2Error) {
+                            NoUac2SupportDialog(
+                                onDismiss = { uiState = uiState.copy(showNoUac2Error = false) }
                             )
                         }
                         
