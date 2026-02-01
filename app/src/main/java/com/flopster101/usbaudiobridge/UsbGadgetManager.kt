@@ -50,9 +50,9 @@ object UsbGadgetManager {
             val p = Runtime.getRuntime().exec(arrayOf("su", "--version"))
             val output = p.inputStream.bufferedReader().readText().trim()
             return when {
-                output.contains("KernelSU", ignoreCase = true) || output.contains("ksu", ignoreCase = true) -> "KernelSU"
                 output.contains("APatch", ignoreCase = true) -> "APatch"
                 output.contains("MAGISK", ignoreCase = true) -> "Magisk"
+                output.contains("KernelSU", ignoreCase = true) || output.contains("ksu", ignoreCase = true) -> "KernelSU"
                 else -> "Unknown"
             }
         } catch (e: Exception) {
