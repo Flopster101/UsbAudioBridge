@@ -166,6 +166,29 @@ class MainActivity : ComponentActivity() {
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
+    private fun checkRoot() {
+        // Only show loading state if we are doing a fresh check or retry
+        if (isRootGranted == false) {
+             isRootGranted = null
+        } else if (isRootGranted == null) {
+             // Already loading or initial state, keep null
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val granted = UsbGadgetManager.isRootGranted()
+            withContext(Dispatchers.Main) {
+                isRootGranted = granted
+            }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && isRootGranted == false) {
+            checkRoot()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -234,18 +257,6 @@ class MainActivity : ComponentActivity() {
         ContextCompat.registerReceiver(this, gadgetStatusReceiver, IntentFilter(AudioService.ACTION_GADGET_STATUS), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         setContent {
-            val coroutineScope = rememberCoroutineScope()
-
-            fun checkRoot() {
-                isRootGranted = null
-                coroutineScope.launch(Dispatchers.IO) {
-                    val granted = UsbGadgetManager.isRootGranted()
-                    withContext(Dispatchers.Main) {
-                        isRootGranted = granted
-                    }
-                }
-            }
-
             LaunchedEffect(Unit) {
                 checkRoot()
             }
