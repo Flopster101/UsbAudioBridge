@@ -882,6 +882,7 @@ object UsbGadgetManager {
 
             if (exitCode != 0) {
                  Log.w(TAG, "Command batch returned non-zero: $exitCode")
+                 success = false
             }
 
         } catch (e: Exception) {
