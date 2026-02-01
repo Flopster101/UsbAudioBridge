@@ -35,22 +35,28 @@ public:
         size_t current_head = head_.load(std::memory_order_acquire);
         size_t available = current_head - tail_.load(std::memory_order_relaxed);
 
-        if (available < count) return 0;  // Wait for full burst
+        if (available == 0) return 0;
+
+        size_t to_read = std::min(count, available);
 
         size_t read_idx = tail_.load(std::memory_order_relaxed) % size_;
-        size_t first_chunk = std::min(count, size_ - read_idx);
+        size_t first_chunk = std::min(to_read, size_ - read_idx);
 
         memcpy(dest, &buffer_[read_idx], first_chunk);
-        if (first_chunk < count) {
-            memcpy(dest + first_chunk, &buffer_[0], count - first_chunk);
+        if (first_chunk < to_read) {
+            memcpy(dest + first_chunk, &buffer_[0], to_read - first_chunk);
         }
 
-        tail_.fetch_add(count, std::memory_order_release);
-        return count;
+        tail_.fetch_add(to_read, std::memory_order_release);
+        return to_read;
     }
 
     size_t available() const {
         return head_.load(std::memory_order_acquire) - tail_.load(std::memory_order_relaxed);
+    }
+
+    size_t capacity() const {
+        return size_;
     }
 
 private:

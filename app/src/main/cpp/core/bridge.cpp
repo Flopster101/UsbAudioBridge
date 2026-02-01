@@ -58,6 +58,10 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   for (int retry = 0; retry < 20 && isRunning; retry++) {
     config.rate = rate;
     for (size_t p_size : periods) {
+      // Ensure period fits in ring buffer (bytes)
+      if (p_size * 4 > rb->capacity()) {
+           continue;
+      }
       config.period_size = p_size;
       config.period_count = 4;
 
@@ -310,12 +314,18 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   engine->start();
 
   // Pre-roll: Wait briefly for data to populate (prevents immediate underrun)
-  // 50ms @ 48kHz = 2400 frames
-  int preroll_ms = 50;
-  LOGD("[Native] Pre-rolling %dms...", preroll_ms);
+  // Target 50ms, but cap at 50% of buffer to prevent deadlock on small buffers.
+  size_t target_preroll_bytes = (size_t)(rate * 50 / 1000) * bytes_per_frame;
+  if (target_preroll_bytes > rb.capacity() / 2) {
+      target_preroll_bytes = rb.capacity() / 2;
+  }
+  // Ensure at least 1 frame (avoid 0 waiting)
+  if (target_preroll_bytes == 0) target_preroll_bytes = bytes_per_frame;
+
+  LOGD("[Native] Pre-rolling (Target: %zu bytes)...", target_preroll_bytes);
   int wait_count = 0;
   while (isRunning &&
-         rb.available() < (rate * preroll_ms / 1000) * bytes_per_frame) {
+         rb.available() < target_preroll_bytes) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
   LOGD("[Native] Host opened device (Streaming started).");
@@ -324,8 +334,12 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   int32_t burstFrames = engine->getBurstFrames();
   if (burstFrames <= 0)
     burstFrames = 192; // Fallback
-  size_t burstBytes = burstFrames * bytes_per_frame;
-  std::vector<uint8_t> p_buf(burstBytes);
+
+  // Optimize: Process in chunks of at least 480 frames (10ms) to reduce CPU overhead
+  // from too many small loop iterations.
+  int32_t chunkFrames = std::max(burstFrames, 480);
+  size_t chunkBytes = chunkFrames * bytes_per_frame;
+  std::vector<uint8_t> p_buf(chunkBytes);
 
   // Consume Loop
   int stats_counter = 0;
@@ -334,7 +348,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
 
   while (isRunning) {
     auto now = std::chrono::steady_clock::now();
-    size_t read_bytes = rb.read(p_buf.data(), burstBytes);
+    size_t read_bytes = rb.read(p_buf.data(), chunkBytes);
 
     if (read_bytes > 0) {
       lastDataTime = now;
@@ -361,7 +375,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
         reportStateToJava(4); // 4 = IDLING
         LOGD("[Native] Stream idle for 1s. State -> Waiting.");
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
 
     // Periodic stats update (only when streaming)
