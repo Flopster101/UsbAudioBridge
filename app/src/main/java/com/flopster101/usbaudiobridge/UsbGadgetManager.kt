@@ -109,6 +109,17 @@ object UsbGadgetManager {
     }
 
     private fun configureMtkMode(udcName: String, enable: Boolean, logCallback: (String) -> Unit) {
+        // Only run this on MediaTek devices
+        val hardware = runRootCommandGetOutput("getprop ro.hardware")
+        val platform = runRootCommandGetOutput("getprop ro.board.platform")
+        
+        val isMtk = hardware.contains("mt", ignoreCase = true) || 
+                    hardware.contains("mediatek", ignoreCase = true) ||
+                    platform.contains("mt", ignoreCase = true) || 
+                    platform.contains("mediatek", ignoreCase = true)
+                    
+        if (!isMtk) return
+
         val value = if (enable) "1" else "0"
         val paths = listOf(
             "/sys/class/udc/$udcName/device/mode",
