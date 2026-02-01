@@ -453,6 +453,13 @@ object UsbGadgetManager {
             return false
         }
         
+        // Verify kernel support
+        if (!runRootCommand("test -f $GADGET_ROOT/functions/uac2.0/p_srate", {})) {
+             logCallback("[Gadget] Error: Your kernel does not support UAC2 (USB Audio Class 2).")
+             logCallback("[Gadget] This feature requires CONFIG_USB_CONFIGFS_F_UAC2 enabled in kernel.")
+             return false
+        }
+        
         Thread.sleep(500)
         
         // Step 5: Bind the gadget
