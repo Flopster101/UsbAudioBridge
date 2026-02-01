@@ -74,6 +74,15 @@ object UsbGadgetManager {
         }
     }
 
+    private fun runRootCommandGetOutput(command: String): String {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+            p.inputStream.bufferedReader().readText().trim()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
     private suspend fun findRunningUsbHalService(): String? = withContext(Dispatchers.IO) {
         val candidates = listOf(
             "vendor.usb-gadget-hal-1-0",
@@ -91,14 +100,9 @@ object UsbGadgetManager {
         )
         
         for (name in candidates) {
-            try {
-                val p = Runtime.getRuntime().exec("getprop init.svc.$name")
-                val status = p.inputStream.bufferedReader().readText().trim()
-                if (status == "running" || status == "restarting") {
-                    return@withContext name
-                }
-            } catch (e: Exception) {
-                // Ignore
+            val status = runRootCommandGetOutput("getprop init.svc.$name")
+            if (status == "running" || status == "restarting") {
+                return@withContext name
             }
         }
         return@withContext null
