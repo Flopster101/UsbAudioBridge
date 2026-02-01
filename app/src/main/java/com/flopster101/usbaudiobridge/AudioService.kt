@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 class AudioService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "UsbAudioMonitorChannel"
+        const val CHANNEL_ID = "UsbAudioMonitorService"
         const val TAG = "AudioService"
         const val ACTION_LOG = "com.flopster101.usbaudiobridge.LOG"
         const val ACTION_STATE_CHANGED = "com.flopster101.usbaudiobridge.STATE_CHANGED"
@@ -675,7 +675,7 @@ class AudioService : Service() {
 
     private fun createNotificationChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "USB Audio Monitor", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel = NotificationChannel(CHANNEL_ID, "USB Audio Monitor", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
@@ -689,6 +689,7 @@ class AudioService : Service() {
             .setSmallIcon(R.drawable.ic_usb)
             .setContentIntent(contentIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
         
         // Only add action if notifications are enabled
