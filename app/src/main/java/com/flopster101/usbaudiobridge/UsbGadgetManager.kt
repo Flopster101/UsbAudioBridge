@@ -81,6 +81,11 @@ object UsbGadgetManager {
             "android.hardware.usb.gadget-service.mediatek",
             "android.hardware.usb-service.mediatek",
             "vendor.usb-hal-1-0",
+            "vendor.usb-hal-1-1",
+            "vendor.usb-hal-1-2",
+            "android.hardware.usb@1.0-service",
+            "android.hardware.usb@1.1-service",
+            "android.hardware.usb@1.2-service",
             "vendor.usb-gadget-hal",
             "usbgadget-hal-1-0"
         )
