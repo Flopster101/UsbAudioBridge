@@ -41,14 +41,33 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   if (rate == 0)
     rate = 48000; // Fallback
 
-  // Configs: Try provided period size, or defaults 1024 (20ms) then 480 (10ms).
+  // Configs: Try provided period size, or Smart Auto
   std::vector<size_t> periods;
+  // Expanded list to hit exact "/4" targets for common buffer sizes (30ms=1440->360, 20ms=960->240, etc)
+  std::vector<size_t> candidates = {4096, 2048, 1024, 960, 512, 480, 360, 256, 240, 192, 128, 120, 96, 64};
+
   if (requested_period_size > 0) {
     periods.push_back((size_t)requested_period_size);
   } else {
-    // Auto: Prefer 1024 (21ms), then larger (safer), then specific 10ms
-    // multiples or smaller
-    periods = {1024, 2048, 4096, 480, 240, 120, 64};
+    // Smart Auto: Target ~4 periods per buffer for stability/latency balance.
+    size_t buffer_frames = rb->capacity() / 4; // 16-bit stereo = 4 bytes/frame
+    size_t target_period = buffer_frames / 4;
+    
+    // Find best match (largest size <= target)
+    size_t best_match = 64; // Default to smallest
+    for (size_t c : candidates) {
+        if (c <= target_period) {
+            best_match = c;
+            break; // Found largest since candidates are desc
+        }
+    }
+    
+    periods.push_back(best_match);
+    
+    // Add others as fallback (skip duplicates)
+    for (size_t c : candidates) {
+        if (c != best_match) periods.push_back(c);
+    }
   }
 
   bool opened = false;
