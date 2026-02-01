@@ -63,6 +63,8 @@ object UsbGadgetManager {
         val candidates = listOf(
             "vendor.usb-gadget-hal-1-0",
             "android.hardware.usb.gadget-service.samsung",
+            "android.hardware.usb.gadget-service.mediatek",
+            "android.hardware.usb-service.mediatek",
             "vendor.usb-hal-1-0",
             "vendor.usb-gadget-hal",
             "usbgadget-hal-1-0"
@@ -80,6 +82,21 @@ object UsbGadgetManager {
             }
         }
         return@withContext null
+    }
+
+    private fun configureMtkMode(udcName: String, enable: Boolean, logCallback: (String) -> Unit) {
+        val value = if (enable) "1" else "0"
+        val paths = listOf(
+            "/sys/class/udc/$udcName/device/mode",
+            "/sys/class/udc/$udcName/device/cmode"
+        )
+        
+        for (path in paths) {
+            if (runRootCommand("test -f $path", {})) {
+                logCallback("[Gadget] Setting MTK specific mode: $path -> $value")
+                runRootCommand("echo '$value' > $path", {})
+            }
+        }
     }
 
     private suspend fun stopUsbHal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository?) {
@@ -445,6 +462,9 @@ object UsbGadgetManager {
                      return false
                  }
                  
+                 // MTK Specific: Force device mode
+                 configureMtkMode(udcName, true, logCallback)
+                 
                  // Ensure UDC is writable and clear
                  Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod 666 $GADGET_ROOT/UDC")).waitFor()
                  Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '' > $GADGET_ROOT/UDC")).waitFor()
@@ -513,6 +533,17 @@ object UsbGadgetManager {
             "rm -f $GADGET_ROOT/configs/b.1/f2 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true"
         ), logCallback)
+        
+        // MTK Specific: Reset device mode
+        try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls /sys/class/udc | head -n 1"))
+            val udcName = p.inputStream.bufferedReader().readText().trim()
+            if (udcName.isNotEmpty()) {
+                configureMtkMode(udcName, false, logCallback)
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
         
         // Restore system USB control
         restoreUsbConfig("adb", logCallback)
