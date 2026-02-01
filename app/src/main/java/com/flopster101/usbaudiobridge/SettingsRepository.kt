@@ -47,6 +47,10 @@ class SettingsRepository(context: Context) {
     fun shouldShowKernelNotice(): Boolean = !prefs.getBoolean("kernel_notice_dismissed", false)
     fun setKernelNoticeDismissed() = prefs.edit().putBoolean("kernel_notice_dismissed", true).apply()
 
+    // Old kernel warning (Windows audio device disabled)
+    fun shouldShowOldKernelNotice(): Boolean = !prefs.getBoolean("old_kernel_notice_dismissed", false)
+    fun setOldKernelNoticeDismissed() = prefs.edit().putBoolean("old_kernel_notice_dismissed", true).apply()
+
     // Notification enabled
     fun saveNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("notification_enabled", enabled).apply()
     fun getNotificationEnabled(): Boolean = prefs.getBoolean("notification_enabled", true)

@@ -174,3 +174,69 @@ fun AboutLibraryRow(name: String, description: String) {
         }
     }
 }
+
+@Composable
+fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+    
+    AlertDialog(
+        onDismissRequest = { onDismiss(dontShowAgain) },
+        icon = {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        title = {
+            Text("Windows audio setup required")
+        },
+        text = {
+            Column {
+                Text(
+                    "Your device kernel version is older than 5.4. Windows might detect this gadget as an 'Internal AUX port' and disable it by default.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    "If audio doesn't work, please open the Sound Control Panel in Windows, find the new device (it might be disabled), and enable it manually.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    "Note: If you are using 'FloppyKernel', this issue is already fixed and you can ignore this.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it },
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Don't show again",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onDismiss(dontShowAgain) }) {
+                Text("Dismiss")
+            }
+        }
+    )
+}

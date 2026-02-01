@@ -121,11 +121,39 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    private fun isOldKernelAffected(): Boolean {
+        try {
+            val version = System.getProperty("os.version") ?: return false
+            
+            val parts = version.split(".")
+            if (parts.size >= 2) {
+                val major = parts[0].toIntOrNull() ?: return false
+                val minor = parts[1].split("-")[0].filter { it.isDigit() }.toIntOrNull() ?: return false
+                
+                if (major < 5) return true
+                if (major == 5 && minor < 4) return true
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return false
+    }
+
     private val gadgetResultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null) return
             val success = intent.getBooleanExtra("success", false)
-            uiState = uiState.copy(isGadgetEnabled = success, isGadgetPending = false)
+            var showNotice = false
+            
+            if (success && isOldKernelAffected() && settingsRepo.shouldShowOldKernelNotice()) {
+                showNotice = true
+            }
+            
+            uiState = uiState.copy(
+                isGadgetEnabled = success, 
+                isGadgetPending = false,
+                showOldKernelNotice = showNotice
+            )
             audioService?.setGadgetEnabled(success)
         }
     }
@@ -320,6 +348,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         
+                        // Old kernel Windows notice
+                        if (uiState.showOldKernelNotice) {
+                            OldKernelNoticeDialog(
+                                onDismiss = { dontShowAgain ->
+                                    if (dontShowAgain) {
+                                        settingsRepo.setOldKernelNoticeDismissed()
+                                    }
+                                    uiState = uiState.copy(showOldKernelNotice = false)
+                                }
+                            )
+                        }
+                        
                         AppNavigation(
                             state = uiState,
                             onToggleGadget = { enable ->
@@ -491,6 +531,8 @@ class MainActivity : ComponentActivity() {
                                     activeDirectionsOption = settingsRepo.getActiveDirections(),
                                     micSourceOption = settingsRepo.getMicSource(),
                                     notificationEnabled = settingsRepo.getNotificationEnabled(),
+                                    showKernelNotice = false,
+                                    showOldKernelNotice = false,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),

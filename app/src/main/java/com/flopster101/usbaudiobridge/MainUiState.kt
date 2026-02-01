@@ -21,6 +21,7 @@ data class MainUiState(
     val micSourceOption: Int = 6, // 6=VoiceRec (Default/Auto)
     val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
+    val showOldKernelNotice: Boolean = false,
     val keepScreenOnOption: Boolean = false,
     val screensaverEnabled: Boolean = false,
     val screensaverTimeout: Int = 15,
