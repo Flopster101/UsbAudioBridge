@@ -198,8 +198,10 @@ class MainActivity : ComponentActivity() {
 
         settingsRepo = SettingsRepository(this)
         // Load settings
-        uiState = uiState.copy(
+        var loadedState = uiState.copy(
             bufferSize = settingsRepo.getBufferSize(),
+            bufferMode = settingsRepo.getBufferMode(),
+            latencyPreset = settingsRepo.getLatencyPreset(),
             periodSizeOption = settingsRepo.getPeriodSize(),
             engineTypeOption = settingsRepo.getEngineType(),
             sampleRateOption = settingsRepo.getSampleRate(),
@@ -215,6 +217,27 @@ class MainActivity : ComponentActivity() {
             screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
             muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
         )
+
+        // Reconciliation: If in Simple mode, ensure bufferSize matches the preset
+        if (loadedState.bufferMode == 0) {
+            val ms = when(loadedState.latencyPreset) {
+                0 -> 10f
+                1 -> 20f
+                2 -> 40f
+                3 -> 80f
+                else -> 200f
+            }
+            val rate = loadedState.sampleRateOption
+            val targetFrames = rate * ms / 1000f
+            
+            // If mismatch, update state AND save it (so next time it's correct)
+            if (kotlin.math.abs(loadedState.bufferSize - targetFrames) > 1f) {
+                 loadedState = loadedState.copy(bufferSize = targetFrames)
+                 settingsRepo.saveBufferSize(targetFrames)
+            }
+        }
+        
+        uiState = loadedState
 
         // Apply initial keep screen on
         if (uiState.keepScreenOnOption) {
@@ -329,6 +352,24 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(bufferSize = it)
                                 settingsRepo.saveBufferSize(it)
                             },
+                            onBufferModeChange = {
+                                uiState = uiState.copy(bufferMode = it)
+                                settingsRepo.saveBufferMode(it)
+                            },
+                            onLatencyPresetChange = { preset ->
+                                val ms = when(preset) {
+                                    0 -> 10f
+                                    1 -> 20f
+                                    2 -> 40f
+                                    3 -> 80f
+                                    else -> 200f
+                                }
+                                val rate = uiState.sampleRateOption
+                                val frames = rate * ms / 1000f
+                                uiState = uiState.copy(latencyPreset = preset, bufferSize = frames)
+                                settingsRepo.saveLatencyPreset(preset)
+                                settingsRepo.saveBufferSize(frames)
+                            },
                             onPeriodSizeChange = {
                                 uiState = uiState.copy(periodSizeOption = it)
                                 settingsRepo.savePeriodSize(it)
@@ -337,9 +378,23 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(engineTypeOption = it)
                                 settingsRepo.saveEngineType(it)
                             },
-                            onSampleRateChange = {
-                                uiState = uiState.copy(sampleRateOption = it)
-                                settingsRepo.saveSampleRate(it)
+                            onSampleRateChange = { rate ->
+                                settingsRepo.saveSampleRate(rate)
+                                if (uiState.bufferMode == 0) {
+                                    // Recalculate buffer to keep latency constant
+                                    val ms = when(uiState.latencyPreset) {
+                                        0 -> 10f
+                                        1 -> 20f
+                                        2 -> 40f
+                                        3 -> 80f
+                                        else -> 200f
+                                    }
+                                    val frames = rate * ms / 1000f
+                                    uiState = uiState.copy(sampleRateOption = rate, bufferSize = frames)
+                                    settingsRepo.saveBufferSize(frames)
+                                } else {
+                                    uiState = uiState.copy(sampleRateOption = rate)
+                                }
                             },
                             onKeepAdbChange = {
                                 uiState = uiState.copy(keepAdbOption = it)
@@ -425,6 +480,8 @@ class MainActivity : ComponentActivity() {
                                 settingsRepo.resetDefaults()
                                 uiState = uiState.copy(
                                     bufferSize = settingsRepo.getBufferSize(),
+                                    bufferMode = settingsRepo.getBufferMode(),
+                                    latencyPreset = settingsRepo.getLatencyPreset(),
                                     periodSizeOption = settingsRepo.getPeriodSize(),
                                     engineTypeOption = settingsRepo.getEngineType(),
                                     sampleRateOption = settingsRepo.getSampleRate(),

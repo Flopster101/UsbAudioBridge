@@ -26,6 +26,8 @@ fun AppNavigation(
     onToggleGadget: (Boolean) -> Unit,
     onToggleCapture: () -> Unit,
     onBufferSizeChange: (Float) -> Unit,
+    onBufferModeChange: (Int) -> Unit,
+    onLatencyPresetChange: (Int) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
@@ -108,6 +110,8 @@ fun AppNavigation(
                 SettingsScreen(
                     state = state,
                     onBufferSizeChange = onBufferSizeChange,
+                    onBufferModeChange = onBufferModeChange,
+                    onLatencyPresetChange = onLatencyPresetChange,
                     onPeriodSizeChange = onPeriodSizeChange,
                     onEngineTypeChange = onEngineTypeChange,
                     onSampleRateChange = onSampleRateChange,

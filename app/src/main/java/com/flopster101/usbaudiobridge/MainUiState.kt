@@ -10,6 +10,8 @@ data class MainUiState(
     
     // Config
     val bufferSize: Float = 4800f,
+    val bufferMode: Int = 0, // 0 = Simple (Presets), 1 = Advanced (Slider)
+    val latencyPreset: Int = 2, // 2 = Normal
     val periodSizeOption: Int = 0, // 0 = Auto
     val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL, 2 = AudioTrack
     val sampleRateOption: Int = 48000,

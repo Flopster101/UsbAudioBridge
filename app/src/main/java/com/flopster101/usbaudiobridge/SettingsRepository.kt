@@ -8,6 +8,12 @@ class SettingsRepository(context: Context) {
     fun saveBufferSize(size: Float) = prefs.edit().putFloat("buffer_size", size).apply()
     fun getBufferSize(): Float = prefs.getFloat("buffer_size", 4800f)
 
+    fun saveBufferMode(mode: Int) = prefs.edit().putInt("buffer_mode", mode).apply()
+    fun getBufferMode(): Int = prefs.getInt("buffer_mode", 0) // 0 = Simple, 1 = Advanced
+
+    fun saveLatencyPreset(preset: Int) = prefs.edit().putInt("latency_preset", preset).apply()
+    fun getLatencyPreset(): Int = prefs.getInt("latency_preset", 2) // 2 = Normal
+
     fun savePeriodSize(size: Int) = prefs.edit().putInt("period_size", size).apply()
     fun getPeriodSize(): Int = prefs.getInt("period_size", 0)
 

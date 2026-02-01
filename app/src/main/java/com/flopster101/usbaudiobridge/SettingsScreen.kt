@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +21,8 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     state: MainUiState,
     onBufferSizeChange: (Float) -> Unit,
+    onBufferModeChange: (Int) -> Unit,
+    onLatencyPresetChange: (Int) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
@@ -48,48 +51,131 @@ fun SettingsScreen(
             )
         }
 
-        // Buffer Size
+        // Buffer Configuration
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Buffer size", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
+                Column(modifier = Modifier.fillMaxWidth()) {
                     
-                    val rate = state.sampleRateOption.toFloat()
-                    val minBuffer = rate * 0.01f // 10ms
-                    val maxBuffer = rate * 0.5f  // 500ms
-                    
-                    val ms = (state.bufferSize / (rate / 1000f)).toInt()
+                    // Title
                     Text(
-                        text = "${state.bufferSize.toInt()} frames (~${ms}ms)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Audio Buffer", 
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
                     )
                     Spacer(Modifier.height(8.dp))
-                    Slider(
-                        value = state.bufferSize.coerceIn(minBuffer, maxBuffer),
-                        onValueChange = onBufferSizeChange,
-                        valueRange = minBuffer..maxBuffer,
-                        steps = 48 // 10ms increments (10..500ms)
-                    )
+
+                    // Content
+                    if (state.bufferMode == 0) {
+                        // SIMPLE MODE
+                        var showLatencyDialog by remember { mutableStateOf(false) }
+                        val presets = listOf(0, 1, 2, 3, 4)
+                        val labels = listOf("Very Low (10ms)", "Low (20ms)", "Normal (40ms)", "High (80ms)", "Very High (200ms)")
+
+                        Column(
+                            modifier = Modifier
+                                .clickable { showLatencyDialog = true }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                             Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                             ) {
+                                 Column(modifier = Modifier.weight(1f)) {
+                                     Text("Target latency", style = MaterialTheme.typography.bodyLarge)
+                                     Spacer(Modifier.height(4.dp))
+                                      Text(
+                                        text = labels.getOrElse(state.latencyPreset) { "Unknown" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                 }
+                                 Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                             }
+                             Spacer(Modifier.height(8.dp))
+                             Text(
+                                text = "Lower latency can require a more powerful device and a stable USB connection. Increase if audio crackles.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        if (showLatencyDialog) {
+                            SelectionDialog(
+                                title = "Target Latency",
+                                options = presets,
+                                labels = labels,
+                                selectedOption = state.latencyPreset,
+                                onDismiss = { showLatencyDialog = false },
+                                onOptionSelected = { 
+                                    onLatencyPresetChange(it)
+                                    showLatencyDialog = false
+                                }
+                            )
+                        }
+
+                    } else {
+                        // ADVANCED MODE (Slider)
+                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            val rate = state.sampleRateOption.toFloat()
+                            val minBuffer = rate * 0.01f // 10ms
+                            val maxBuffer = rate * 0.5f  // 500ms
+                            
+                            val ms = (state.bufferSize / (rate / 1000f)).toInt()
+                            Text(
+                                text = "${state.bufferSize.toInt()} frames (~${ms}ms)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Slider(
+                                value = state.bufferSize.coerceIn(minBuffer, maxBuffer),
+                                onValueChange = onBufferSizeChange,
+                                valueRange = minBuffer..maxBuffer,
+                                steps = 48 // 10ms increments (10..500ms)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Lower Latency (10ms)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                                Text(
+                                    text = "Higher Stability (500ms)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                         }
+                    }
+                    
+                    HorizontalDivider()
+                    
+                    // Advanced Toggle Footer
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onBufferModeChange(if (state.bufferMode == 0) 1 else 0) }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Lower Latency (10ms)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
+                            text = "Advanced configuration",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = "Higher Stability (500ms)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
+                        Switch(
+                            checked = state.bufferMode == 1,
+                            onCheckedChange = { onBufferModeChange(if (it) 1 else 0) }
                         )
                     }
                 }
             }
         }
+
 
 
 
