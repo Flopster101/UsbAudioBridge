@@ -68,8 +68,18 @@ fun SettingsScreen(
                     if (state.bufferMode == 0) {
                         // SIMPLE MODE
                         var showLatencyDialog by remember { mutableStateOf(false) }
-                        val presets = listOf(0, 1, 2, 3, 4)
-                        val labels = listOf("Very Low (10ms)", "Low (20ms)", "Normal (40ms)", "High (80ms)", "Very High (200ms)")
+                        val presets = (0..8).toList()
+                        val labels = listOf(
+                            "Minimum (10ms)", 
+                            "Very Low (20ms)", 
+                            "Low (30ms)", 
+                            "Normal (40ms)", 
+                            "Balanced (50ms)", 
+                            "High (60ms)", 
+                            "Very High (80ms)", 
+                            "Stable (100ms)", 
+                            "Maximum (200ms)"
+                        )
 
                         Column(
                             modifier = Modifier

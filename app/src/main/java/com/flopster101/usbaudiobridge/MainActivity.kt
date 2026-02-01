@@ -255,8 +255,12 @@ class MainActivity : ComponentActivity() {
             val ms = when(loadedState.latencyPreset) {
                 0 -> 10f
                 1 -> 20f
-                2 -> 40f
-                3 -> 80f
+                2 -> 30f
+                3 -> 40f
+                4 -> 50f
+                5 -> 60f
+                6 -> 80f
+                7 -> 100f
                 else -> 200f
             }
             val rate = loadedState.sampleRateOption
@@ -411,8 +415,12 @@ class MainActivity : ComponentActivity() {
                                 val ms = when(preset) {
                                     0 -> 10f
                                     1 -> 20f
-                                    2 -> 40f
-                                    3 -> 80f
+                                    2 -> 30f
+                                    3 -> 40f
+                                    4 -> 50f
+                                    5 -> 60f
+                                    6 -> 80f
+                                    7 -> 100f
                                     else -> 200f
                                 }
                                 val rate = uiState.sampleRateOption
@@ -436,8 +444,12 @@ class MainActivity : ComponentActivity() {
                                     val ms = when(uiState.latencyPreset) {
                                         0 -> 10f
                                         1 -> 20f
-                                        2 -> 40f
-                                        3 -> 80f
+                                        2 -> 30f
+                                        3 -> 40f
+                                        4 -> 50f
+                                        5 -> 60f
+                                        6 -> 80f
+                                        7 -> 100f
                                         else -> 200f
                                     }
                                     val frames = rate * ms / 1000f
