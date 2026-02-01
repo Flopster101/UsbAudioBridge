@@ -419,6 +419,7 @@ object UsbGadgetManager {
         val configCommands = mutableListOf(
             // Clear existing function links
             "rm -f $GADGET_ROOT/configs/b.1/f* || true",
+            "rm -f $GADGET_ROOT/os_desc/b.1 || true",
             
             // Remove old UAC2 function if it exists
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true",
@@ -428,6 +429,11 @@ object UsbGadgetManager {
             "echo \"$pid\" > $GADGET_ROOT/idProduct",
             "echo \"$bcdDevice\" > $GADGET_ROOT/bcdDevice",
             "echo \"0x0200\" > $GADGET_ROOT/bcdUSB",
+            
+            // Windows OS Descriptor
+            "echo \"1\" > $GADGET_ROOT/os_desc/use",
+            "echo \"0x1\" > $GADGET_ROOT/os_desc/b_vendor_code",
+            "echo \"MSFT100\" > $GADGET_ROOT/os_desc/qw_sign",
             
             // Create and configure UAC2 function
             "mkdir -p $GADGET_ROOT/functions/uac2.0",
@@ -446,7 +452,8 @@ object UsbGadgetManager {
             "echo \"$serial\" > $GADGET_ROOT/strings/0x409/serialnumber",
             
             // Set Configuration String
-            "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409"
+            "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409",
+            "ln -s $GADGET_ROOT/configs/b.1 $GADGET_ROOT/os_desc/b.1"
         )
         
         // Link functions
@@ -530,7 +537,7 @@ object UsbGadgetManager {
                  Thread.sleep(200)
                  
                  logCallback("[Gadget] Binding to $udcName (Attempt $i)...")
-                 Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '$udcName' > $GADGET_ROOT/UDC")).waitFor()
+                 runRootCommand("echo '$udcName' > $GADGET_ROOT/UDC", logCallback)
                  
                  Thread.sleep(300)
                  val currentUdc = getUdcContent()
@@ -590,6 +597,7 @@ object UsbGadgetManager {
         runRootCommands(listOf(
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rm -f $GADGET_ROOT/configs/b.1/f2 || true",
+            "rm -f $GADGET_ROOT/os_desc/b.1 || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true"
         ), logCallback)
         
