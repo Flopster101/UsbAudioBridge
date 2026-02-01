@@ -45,6 +45,21 @@ object UsbGadgetManager {
         }
     }
 
+    private fun getRootSolution(): String {
+        try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "--version"))
+            val output = p.inputStream.bufferedReader().readText().trim()
+            return when {
+                output.contains("KernelSU", ignoreCase = true) || output.contains("ksu", ignoreCase = true) -> "KernelSU"
+                output.contains("APatch", ignoreCase = true) -> "APatch"
+                output.contains("MAGISK", ignoreCase = true) -> "Magisk"
+                else -> "Unknown"
+            }
+        } catch (e: Exception) {
+            return "Unknown"
+        }
+    }
+
     /**
      * Check if ADB is currently active by checking the USB config property.
      */
@@ -581,103 +596,93 @@ object UsbGadgetManager {
         val tmpPath = "/data/local/tmp/uac2_policy.te"
         val policyBlob = rules.joinToString("\n")
         
-        // 1. Try KernelSU via ksud sepolicy apply
-        val ksuBin = "/data/adb/ksu/bin/ksud"
-        if (runRootCommand("test -f $ksuBin", {})) {
-            try {
-                val writeCmd = "echo '$policyBlob' > $tmpPath"
-                if (runRootCommand(writeCmd, {})) {
-                    val applyCmd = "$ksuBin sepolicy apply $tmpPath"
-                    if (runRootCommand(applyCmd, logCallback)) {
-                        logCallback("[Gadget] SELinux rules applied via ksud (KernelSU)")
-                        runRootCommand("rm -f $tmpPath", {})
-                        return
-                    }
-                }
-            } catch (e: Exception) {
-                logCallback("[Gadget] KernelSU policy apply failed: ${e.message}")
-            }
-        }
-
-        // 2. Try Magisk/APatch via magiskpolicy
-        // Magisk stores binaries at /data/adb/magisk/ (MAGISKBIN)
-        // APatch stores binaries at /data/adb/ap/bin/
-        // Also check common alternative paths and tmpfs mount
-        val magiskPolicyPaths = listOf(
-            "/data/adb/magisk/magiskpolicy",  // Standard Magisk MAGISKBIN location
-            "/data/adb/ap/bin/magiskpolicy",  // APatch location
-            "/data/adb/magisk/supolicy",      // Symlink for SuperSU compatibility
-            "/system/bin/magiskpolicy",       // System installed (rare)
-            "/sbin/magiskpolicy",             // Legacy path
-            "/sbin/supolicy"                  // Legacy SuperSU path
-        )
+        val rootSolution = getRootSolution()
+        logCallback("[Gadget] Detected Root Solution: $rootSolution")
         
-        var magiskPolicyBin: String? = null
-        for (path in magiskPolicyPaths) {
-            if (runRootCommand("test -f $path", {})) {
-                magiskPolicyBin = path
-                logCallback("[Gadget] Found magiskpolicy at: $path")
-                break
-            }
-        }
+        var policyBin: String? = null
+        var useKsud = false
         
-        // Also try to find magiskpolicy in Magisk's tmpfs mount
-        if (magiskPolicyBin == null) {
-            // Magisk creates a tmpfs mount, path can be retrieved with `magisk --path`
-            val magiskTmpResult = StringBuilder()
-            if (runRootCommand("magisk --path 2>/dev/null", { msg -> magiskTmpResult.append(msg) })) {
-                val magiskTmp = magiskTmpResult.toString().trim()
-                if (magiskTmp.isNotEmpty()) {
-                    val tmpfsPolicyPath = "$magiskTmp/magiskpolicy"
-                    if (runRootCommand("test -f $tmpfsPolicyPath", {})) {
-                        magiskPolicyBin = tmpfsPolicyPath
-                        logCallback("[Gadget] Found magiskpolicy at tmpfs: $tmpfsPolicyPath")
-                    }
+        when (rootSolution) {
+            "KernelSU" -> {
+                // KernelSU usually puts ksud in /data/adb/ksu/bin/ksud
+                // It might also be in PATH, but full path is safer
+                val ksuPath = "/data/adb/ksu/bin/ksud"
+                if (runRootCommand("test -f $ksuPath", {})) {
+                    policyBin = ksuPath
+                    useKsud = true
+                } else {
+                    // Try just "ksud" if full path missing
+                    policyBin = "ksud"
+                    useKsud = true
                 }
             }
-        }
-        
-        if (magiskPolicyBin != null) {
-            try {
-                // Method A: Use --apply with a rules file (preferred, more reliable)
-                val writeCmd = "echo '$policyBlob' > $tmpPath"
-                if (runRootCommand(writeCmd, {})) {
-                    // magiskpolicy --live --apply FILE loads rules from file and applies live
-                    val applyCmd = "$magiskPolicyBin --live --apply $tmpPath"
-                    if (runRootCommand(applyCmd, logCallback)) {
-                        logCallback("[Gadget] SELinux rules applied via magiskpolicy --apply (Magisk)")
-                        runRootCommand("rm -f $tmpPath", {})
-                        return
+            "APatch" -> {
+                val apPath = "/data/adb/ap/bin/magiskpolicy"
+                if (runRootCommand("test -f $apPath", {})) {
+                    policyBin = apPath
+                }
+            }
+            "Magisk", "Unknown" -> {
+                // Search for magiskpolicy
+                val magiskPolicyPaths = listOf(
+                    "/data/adb/magisk/magiskpolicy",
+                    "/data/adb/magisk/supolicy",
+                    "/sbin/magiskpolicy",
+                    "/system/bin/magiskpolicy",
+                    "/sbin/supolicy"
+                )
+                
+                for (path in magiskPolicyPaths) {
+                    if (runRootCommand("test -f $path", {})) {
+                        policyBin = path
+                        break
                     }
                 }
                 
-                // Method B: Fallback to inline rules if file method fails
-                logCallback("[Gadget] File-based apply failed, trying inline rules...")
-                var allRulesApplied = true
-                for (rule in rules) {
-                    // Each rule must be quoted as a single argument
-                    val ruleCmd = "$magiskPolicyBin --live '$rule'"
-                    if (!runRootCommand(ruleCmd, { msg ->
-                        if (msg.contains("error", ignoreCase = true) || 
-                            msg.contains("denied", ignoreCase = true)) {
-                            logCallback("[Gadget] Rule warning: $msg")
+                // Fallback: check Magisk tmpfs
+                if (policyBin == null) {
+                    val magiskTmpResult = StringBuilder()
+                    if (runRootCommand("magisk --path 2>/dev/null", { msg -> magiskTmpResult.append(msg) })) {
+                        val magiskTmp = magiskTmpResult.toString().trim()
+                        if (magiskTmp.isNotEmpty()) {
+                            val tmpfsPolicyPath = "$magiskTmp/magiskpolicy"
+                            if (runRootCommand("test -f $tmpfsPolicyPath", {})) {
+                                policyBin = tmpfsPolicyPath
+                            }
                         }
-                    })) {
-                        allRulesApplied = false
                     }
                 }
-                
-                if (allRulesApplied) {
-                    logCallback("[Gadget] SELinux rules applied via magiskpolicy --live (Magisk)")
-                    runRootCommand("rm -f $tmpPath", {})
-                    return
+            }
+        }
+        
+        // Try applying policy if we found a tool
+        if (policyBin != null) {
+            try {
+                // Write rules to temp file
+                val writeCmd = "echo '$policyBlob' > $tmpPath"
+                if (runRootCommand(writeCmd, {})) {
+                    val applyCmd = if (useKsud) {
+                        "$policyBin sepolicy apply $tmpPath"
+                    } else {
+                        "$policyBin --live --apply $tmpPath"
+                    }
+                    
+                    if (runRootCommand(applyCmd, { msg -> 
+                        if (msg.contains("error", ignoreCase = true)) logCallback("[Policy] $msg") 
+                    })) {
+                        logCallback("[Gadget] SELinux rules applied using $policyBin")
+                        runRootCommand("rm -f $tmpPath", {})
+                        return
+                    } else {
+                        logCallback("[Gadget] Policy apply failed with $policyBin")
+                    }
                 }
             } catch (e: Exception) {
-                logCallback("[Gadget] Magisk policy apply failed: ${e.message}")
+                logCallback("[Gadget] Policy apply exception: ${e.message}")
             }
         }
 
-        // 3. Fallback: Try generic supolicy command (older SuperSU)
+        // 3. Fallback: Try generic supolicy command (older SuperSU or simple PATH access)
         if (runRootCommand("which supolicy >/dev/null 2>&1", {})) {
             logCallback("[Gadget] Trying legacy supolicy...")
             var success = true
@@ -697,7 +702,7 @@ object UsbGadgetManager {
 
         // Cleanup temp file if it exists
         runRootCommand("rm -f $tmpPath", {})
-        logCallback("[Gadget] Warning: No SELinux policy tool succeeded (tried KernelSU, Magisk, SuperSU)")
+        logCallback("[Gadget] Warning: No SELinux policy tool succeeded.")
         logCallback("[Gadget] Audio device access may fail without proper SELinux rules")
     }
 
