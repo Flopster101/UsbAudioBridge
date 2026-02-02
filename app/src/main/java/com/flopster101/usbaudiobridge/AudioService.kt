@@ -488,6 +488,8 @@ class AudioService : Service() {
                   broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
                   broadcastLog("[App] Failed to configure gadget.")
+                   // Restore USB state to avoid leaving the device in a bad config
+                   UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
              }
              broadcastGadgetResult(success)
         }
