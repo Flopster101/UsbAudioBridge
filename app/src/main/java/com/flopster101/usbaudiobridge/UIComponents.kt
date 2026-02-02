@@ -334,3 +334,40 @@ fun GadgetSetupFailedDialog(onDismiss: () -> Unit) {
         }
     )
 }
+
+@Composable
+fun KeepAdbFailedDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error
+            )
+        },
+        title = {
+            Text("Keep ADB not supported")
+        },
+        text = {
+            Column {
+                Text(
+                    "This device can't keep ADB enabled while the USB gadget is active.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "Please disable the Keep ADB option and try again.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}

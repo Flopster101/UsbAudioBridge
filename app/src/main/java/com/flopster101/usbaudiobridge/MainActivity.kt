@@ -77,6 +77,9 @@ class MainActivity : ComponentActivity() {
             if (msg.contains("Your kernel does not support UAC2")) {
                 uiState = uiState.copy(showNoUac2Error = true)
             }
+            if (msg.contains("Cannot keep ADB enabled")) {
+                uiState = uiState.copy(showKeepAdbError = true)
+            }
         }
     }
 
@@ -382,6 +385,13 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { uiState = uiState.copy(showGadgetSetupError = false) }
                             )
                         }
+
+                        // Keep ADB not supported notice
+                        if (uiState.showKeepAdbError) {
+                            KeepAdbFailedDialog(
+                                onDismiss = { uiState = uiState.copy(showKeepAdbError = false) }
+                            )
+                        }
                         
                         AppNavigation(
                             state = uiState,
@@ -565,6 +575,7 @@ class MainActivity : ComponentActivity() {
                                     showKernelNotice = false,
                                     showOldKernelNotice = false,
                                     showGadgetSetupError = false,
+                                    showKeepAdbError = false,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),
