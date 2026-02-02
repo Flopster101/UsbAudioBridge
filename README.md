@@ -78,6 +78,7 @@ The release APK will be at `app/build/outputs/apk/release/app-release-unsigned.a
 - On older kernels (roughly < 5.4), Windows may detect the gadget as an "Internal AUX Port" and disable/mute it by default. If there is no audio, open the Windows Sound Control Panel and enable the device.
 - If the host does not detect audio, verify that the gadget is enabled and that the correct UDC controller is selected.
 - Some vendor USB HALs can interfere with gadget mode; the app attempts to stop conflicting services when needed.
+- 192kHz sample rate may not work on all devices. Some platforms (e.g., Samsung Exynos 1280) fail to bind the gadget at this rate while lower rates work fine. This is a likely kernel driver limitation.
 
 ## License
 GNU GPLv3
