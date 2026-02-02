@@ -41,6 +41,15 @@ No additional drivers or companion apps are required on the host.
 4. Start audio capture to begin the bridge.
 5. Use the speaker and mic controls to mute/unmute as needed.
 
+## Downloads
+Releases are not published yet. For now, CI builds are available here:
+- [nightly.link (CI builds)](https://nightly.link/Flopster101/UsbAudioBridge/workflows/android-build/master?preview)
+
+Alternative (raw GitHub Actions artifacts):
+- [GitHub Actions](https://github.com/flopster101/UACExperiment/actions)
+
+Note: CI artifacts are debug-only and may be unoptimized.
+
 ## Screenshots
 <p>
 	<img src="docs/images/home_idle.png" width="240" />
@@ -51,15 +60,6 @@ No additional drivers or companion apps are required on the host.
 	<img src="docs/images/screensaver_active.png" width="240" />
 	<img src="docs/images/about.png" width="240" />
 </p>
-
-## Downloads
-Releases are not published yet. For now, CI builds are available here:
-- [nightly.link (CI builds)](https://nightly.link/Flopster101/UsbAudioBridge/workflows/android-build/master?preview)
-
-Alternative (raw GitHub Actions artifacts):
-- [GitHub Actions](https://github.com/flopster101/UACExperiment/actions)
-
-Note: CI artifacts are debug-only and may be unoptimized.
 
 ## Build
 ```bash
