@@ -164,8 +164,9 @@ class MainActivity : ComponentActivity() {
                 isGadgetEnabled = success, 
                 isGadgetPending = false,
                 showOldKernelNotice = showNotice,
-                showGadgetSetupError = !success && !uiState.lastGadgetFailureWasKeepAdb,
-                lastGadgetFailureWasKeepAdb = if (success) false else uiState.lastGadgetFailureWasKeepAdb
+                showGadgetSetupError = !success && uiState.lastGadgetActionWasEnable && !uiState.lastGadgetFailureWasKeepAdb,
+                lastGadgetFailureWasKeepAdb = if (success) false else uiState.lastGadgetFailureWasKeepAdb,
+                lastGadgetActionWasEnable = if (success) false else uiState.lastGadgetActionWasEnable
             )
             audioService?.setGadgetEnabled(success)
         }
@@ -403,10 +404,20 @@ class MainActivity : ComponentActivity() {
                             onToggleGadget = { enable ->
                                  if (enable) {
                                      // Set pending state, wait for result broadcast to confirm
-                                     uiState = uiState.copy(isGadgetPending = true)
+                                     uiState = uiState.copy(
+                                         isGadgetPending = true,
+                                         lastGadgetActionWasEnable = true,
+                                         showGadgetSetupError = false
+                                     )
                                      audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
                                  } else {
-                                     uiState = uiState.copy(isGadgetEnabled = false, isGadgetPending = true)
+                                     uiState = uiState.copy(
+                                         isGadgetEnabled = false,
+                                         isGadgetPending = true,
+                                         lastGadgetActionWasEnable = false,
+                                         showGadgetSetupError = false,
+                                         lastGadgetFailureWasKeepAdb = false
+                                     )
                                      audioService?.setGadgetEnabled(false)
                                      audioService?.stopBridge()
                                      // Don't wait for broadcast result for disable
@@ -582,6 +593,7 @@ class MainActivity : ComponentActivity() {
                                     showGadgetSetupError = false,
                                     showKeepAdbError = false,
                                     lastGadgetFailureWasKeepAdb = false,
+                                    lastGadgetActionWasEnable = false,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),
