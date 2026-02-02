@@ -95,6 +95,26 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
+    fun saveOriginalUsbConfig(sysConfig: String?, vendorConfig: String?) {
+        val editor = prefs.edit()
+        if (sysConfig != null) editor.putString("orig_sys_usb_config", sysConfig)
+        if (vendorConfig != null) editor.putString("orig_vendor_usb_config", vendorConfig)
+        editor.apply()
+    }
+
+    fun getOriginalUsbConfig(): Pair<String?, String?> {
+        val sys = prefs.getString("orig_sys_usb_config", null)
+        val vendor = prefs.getString("orig_vendor_usb_config", null)
+        return Pair(sys, vendor)
+    }
+
+    fun clearOriginalUsbConfig() {
+        prefs.edit()
+            .remove("orig_sys_usb_config")
+            .remove("orig_vendor_usb_config")
+            .apply()
+    }
+
     // Persist stopped HAL service name to restore it later (even after app kill)
     fun saveStoppedHalService(serviceName: String) = prefs.edit().putString("stopped_hal_service", serviceName).apply()
     fun getStoppedHalService(): String? = prefs.getString("stopped_hal_service", null)

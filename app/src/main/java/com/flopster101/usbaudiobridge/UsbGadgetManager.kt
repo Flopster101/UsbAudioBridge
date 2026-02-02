@@ -168,11 +168,22 @@ object UsbGadgetManager {
      * Restore USB config to system control.
      * This triggers the system (HAL or init.rc) to reconfigure USB.
      */
-    private fun restoreUsbConfig(config: String, logCallback: (String) -> Unit) {
-        // Set both properties to ensure system picks it up
-        runRootCommands(listOf(
-            "setprop sys.usb.config $config"
-        ), logCallback)
+    private fun restoreUsbConfig(settingsRepo: SettingsRepository?, logCallback: (String) -> Unit) {
+        val (savedSys, savedVendor) = settingsRepo?.getOriginalUsbConfig() ?: Pair(null, null)
+
+        val commands = mutableListOf<String>()
+        if (!savedVendor.isNullOrBlank()) {
+            commands.add("setprop vendor.usb.config $savedVendor")
+        }
+        if (!savedSys.isNullOrBlank()) {
+            commands.add("setprop sys.usb.config $savedSys")
+        }
+
+        if (commands.isEmpty()) {
+            commands.add("setprop sys.usb.config adb")
+        }
+
+        runRootCommands(commands, logCallback)
     }
 
     /**
@@ -306,6 +317,24 @@ object UsbGadgetManager {
     ): Boolean {
         logCallback("[Gadget] Configuring UAC2 gadget ($sampleRate Hz)...")
         
+        // Backup original USB config (sys/vendor) if not already stored
+        if (settingsRepo != null) {
+            val (savedSys, savedVendor) = settingsRepo.getOriginalUsbConfig()
+            if (savedSys == null && savedVendor == null) {
+                val sysConfig = runRootCommandGetOutput("getprop sys.usb.config")
+                    .ifBlank { runRootCommandGetOutput("getprop persist.sys.usb.config") }
+                val vendorConfig = runRootCommandGetOutput("getprop vendor.usb.config")
+                    .ifBlank { runRootCommandGetOutput("getprop persist.vendor.usb.config") }
+
+                if (sysConfig.isNotBlank() || vendorConfig.isNotBlank()) {
+                    settingsRepo.saveOriginalUsbConfig(
+                        sysConfig.ifBlank { null },
+                        vendorConfig.ifBlank { null }
+                    )
+                }
+            }
+        }
+
         // Check ADB status if user wants to keep it
         var adbWasActive = false
         var ffsAdbExists = false
@@ -607,7 +636,8 @@ object UsbGadgetManager {
         }
         
         // Restore system USB control
-        restoreUsbConfig("adb", logCallback)
+        restoreUsbConfig(settingsRepo, logCallback)
+        settingsRepo?.clearOriginalUsbConfig()
         
         // Restart USB HAL if we stopped it
         startUsbHal(logCallback, settingsRepo)
