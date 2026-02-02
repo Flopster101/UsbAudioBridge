@@ -78,7 +78,11 @@ class MainActivity : ComponentActivity() {
                 uiState = uiState.copy(showNoUac2Error = true)
             }
             if (msg.contains("Cannot keep ADB enabled")) {
-                uiState = uiState.copy(showKeepAdbError = true)
+                uiState = uiState.copy(
+                    showKeepAdbError = true,
+                    lastGadgetFailureWasKeepAdb = true,
+                    showGadgetSetupError = false
+                )
             }
         }
     }
@@ -160,7 +164,8 @@ class MainActivity : ComponentActivity() {
                 isGadgetEnabled = success, 
                 isGadgetPending = false,
                 showOldKernelNotice = showNotice,
-                showGadgetSetupError = !success
+                showGadgetSetupError = !success && !uiState.lastGadgetFailureWasKeepAdb,
+                lastGadgetFailureWasKeepAdb = if (success) false else uiState.lastGadgetFailureWasKeepAdb
             )
             audioService?.setGadgetEnabled(success)
         }
@@ -576,6 +581,7 @@ class MainActivity : ComponentActivity() {
                                     showOldKernelNotice = false,
                                     showGadgetSetupError = false,
                                     showKeepAdbError = false,
+                                    lastGadgetFailureWasKeepAdb = false,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),

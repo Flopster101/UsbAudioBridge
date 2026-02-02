@@ -25,6 +25,7 @@ data class MainUiState(
     val showNoUac2Error: Boolean = false,
     val showGadgetSetupError: Boolean = false,
     val showKeepAdbError: Boolean = false,
+    val lastGadgetFailureWasKeepAdb: Boolean = false,
     val keepScreenOnOption: Boolean = false,
     val screensaverEnabled: Boolean = false,
     val screensaverTimeout: Int = 15,
