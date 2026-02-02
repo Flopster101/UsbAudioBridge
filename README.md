@@ -1,5 +1,8 @@
 # USB Audio Bridge
 
+[![Android Build](https://github.com/Flopster101/UsbAudioBridge/actions/workflows/android-build.yml/badge.svg?branch=master)](https://github.com/Flopster101/UsbAudioBridge/actions/workflows/android-build.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 USB Audio Bridge turns a rooted Android device into a USB Audio Class 2.0 sound card for any USB host (PC, phone, tablet). It exposes a UAC2 gadget via ConfigFS, captures audio from the host, and plays it on the phone. It can also send the phone microphone back to the host.
 
 No additional drivers or companion apps are required on the host.
