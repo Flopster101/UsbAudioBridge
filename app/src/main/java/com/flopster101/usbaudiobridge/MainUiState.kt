@@ -23,6 +23,7 @@ data class MainUiState(
     val showKernelNotice: Boolean = false,
     val showOldKernelNotice: Boolean = false,
     val showNoUac2Error: Boolean = false,
+    val showGadgetSetupError: Boolean = false,
     val keepScreenOnOption: Boolean = false,
     val screensaverEnabled: Boolean = false,
     val screensaverTimeout: Int = 15,

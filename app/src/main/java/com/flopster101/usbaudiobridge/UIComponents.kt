@@ -290,3 +290,47 @@ fun NoUac2SupportDialog(onDismiss: () -> Unit) {
         }
     )
 }
+
+@Composable
+fun GadgetSetupFailedDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error
+            )
+        },
+        title = {
+            Text("Gadget setup failed")
+        },
+        text = {
+            Column {
+                Text(
+                    "The USB gadget could not be configured.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "This can happen if the selected sample rate is not supported by the kernel, due to a kernel bug, or because this device is not yet supported.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "Try a different sample rate. If none of them work, please report the issue in the repository with logs.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}

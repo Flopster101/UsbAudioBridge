@@ -156,7 +156,8 @@ class MainActivity : ComponentActivity() {
             uiState = uiState.copy(
                 isGadgetEnabled = success, 
                 isGadgetPending = false,
-                showOldKernelNotice = showNotice
+                showOldKernelNotice = showNotice,
+                showGadgetSetupError = !success
             )
             audioService?.setGadgetEnabled(success)
         }
@@ -374,6 +375,13 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { uiState = uiState.copy(showNoUac2Error = false) }
                             )
                         }
+
+                        // Gadget setup failure notice
+                        if (uiState.showGadgetSetupError) {
+                            GadgetSetupFailedDialog(
+                                onDismiss = { uiState = uiState.copy(showGadgetSetupError = false) }
+                            )
+                        }
                         
                         AppNavigation(
                             state = uiState,
@@ -556,6 +564,7 @@ class MainActivity : ComponentActivity() {
                                     notificationEnabled = settingsRepo.getNotificationEnabled(),
                                     showKernelNotice = false,
                                     showOldKernelNotice = false,
+                                    showGadgetSetupError = false,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),
