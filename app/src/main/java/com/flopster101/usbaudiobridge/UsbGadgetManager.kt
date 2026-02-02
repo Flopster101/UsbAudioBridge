@@ -780,7 +780,7 @@ object UsbGadgetManager {
 
     fun isGadgetActive(): Boolean {
         return try {
-            val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -q uac2"
+            val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -q uac2 && udc=\$(cat $GADGET_ROOT/UDC 2>/dev/null) && [ -n \"\$udc\" ] && [ \"\$udc\" != \"none\" ]"
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
             p.waitFor() == 0
         } catch (e: Exception) { false }
