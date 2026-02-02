@@ -49,6 +49,12 @@ No additional drivers or companion apps are required on the host.
 	<img src="docs/images/about.png" width="240" />
 </p>
 
+## Downloads
+Releases are not published yet. For now, CI builds are available via GitHub Actions:
+- https://github.com/flopster101/UACExperiment/actions
+
+Note: CI artifacts are debug-only and may be unoptimized.
+
 ## Build
 ```bash
 cd UsbAudioMonitor
