@@ -50,8 +50,11 @@ No additional drivers or companion apps are required on the host.
 </p>
 
 ## Downloads
-Releases are not published yet. For now, CI builds are available via GitHub Actions:
-- https://github.com/flopster101/UACExperiment/actions
+Releases are not published yet. For now, CI builds are available here:
+- [nightly.link (CI builds)](https://nightly.link/Flopster101/UsbAudioBridge/workflows/android-build/master?preview)
+
+Alternative (raw GitHub Actions artifacts):
+- [GitHub Actions](https://github.com/flopster101/UACExperiment/actions)
 
 Note: CI artifacts are debug-only and may be unoptimized.
 
