@@ -8,6 +8,11 @@ USB Audio Bridge turns a rooted Android device into a USB Audio Class 2.0 sound 
 No additional drivers or companion apps are required on the host.
 
 ## Requirements
+- Android 8.0+ device running on any of the following architectures:
+    - armeabi-v7a
+    - arm64-v8a
+    - x86
+    - x86_64
 - Rooted Android device using one of the supported root solutions:
 	- Magisk
 	- KernelSU
