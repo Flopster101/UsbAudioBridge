@@ -1,4 +1,4 @@
-name: Android CI - debug build
+name: Android CI - optimizedDebug build
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
               - '!**/*.txt'
 
   build:
-    name: Build debug APK
+    name: Build optimizedDebug APK
     needs: filter
     if: ${{ needs.filter.outputs.code == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -80,8 +80,8 @@ jobs:
           yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} --licenses || true
         shell: bash
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build optimizedDebug APK
+        run: ./gradlew assembleOptimizedDebug --no-daemon --stacktrace
 
       - name: List produced APKs
         run: ls -R app/build/outputs/apk || true
@@ -93,13 +93,13 @@ jobs:
       - name: Prepare APK artifact
         run: |
           mkdir -p artifact
-          APK=$(find app/build/outputs -type f -name "*.apk" | grep -i debug | head -n1 || find app/build/outputs -type f -name "*.apk" | head -n1)
+          APK=$(find app/build/outputs -type f -name "*.apk" | grep -Ei 'optimized[-_]?debug' | head -n1 || find app/build/outputs -type f -name "*.apk" | head -n1)
           if [ -z "$APK" ]; then echo "No APK found" >&2; exit 1; fi
-          cp "$APK" artifact/app-debug.apk
+          cp "$APK" artifact/app-optimizedDebug.apk
         shell: bash
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: UsbAudioBridge-${{ steps.vars.outputs.short_sha }}-apk
-          path: artifact/app-debug.apk
+          path: artifact/app-optimizedDebug.apk
