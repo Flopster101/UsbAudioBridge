@@ -60,6 +60,13 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            externalNativeBuild {
+                cmake {
+                    // Apply aggressive native optimization for release-like builds.
+                    cFlags += "-O3 -ffast-math"
+                    cppFlags += "-O3 -ffast-math"
+                }
+            }
         }
         create("optimizedDebug") {
             initWith(getByName("release"))
