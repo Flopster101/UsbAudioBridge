@@ -13,6 +13,9 @@ class JavaAudioTrackEngine : public AudioEngine {
     jmethodID midStop = nullptr;
     jmethodID midRelease = nullptr;
     bool prepared = false;
+    jobject directBuffer = nullptr;
+    const uint8_t* directBufferPtr = nullptr;
+    size_t directBufferCapacity = 0;
 
     // Helper to get ENV for the current thread
     JNIEnv* getEnv();

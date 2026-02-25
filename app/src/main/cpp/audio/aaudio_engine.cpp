@@ -1,6 +1,7 @@
 #include "aaudio_engine.h"
 
 #include <aaudio/AAudio.h>
+#include <algorithm>
 #include <dlfcn.h>
 
 #include "../logging/logging.h"
@@ -40,6 +41,7 @@ bool AAudioEngine::open(int rate, int channelCount) {
     AAudio_createStreamBuilder(&builder);
     AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
     AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
+    AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
     AAudioStreamBuilder_setSampleRate(builder, rate);
     AAudioStreamBuilder_setChannelCount(builder, channelCount);
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
@@ -52,6 +54,20 @@ bool AAudioEngine::open(int rate, int channelCount) {
     }
     AAudioStreamBuilder_delete(builder);
     burstFrames = AAudioStream_getFramesPerBurst(stream);
+    if (burstFrames <= 0) {
+        burstFrames = 192;
+    }
+
+    int32_t capacityFrames = AAudioStream_getBufferCapacityInFrames(stream);
+    if (capacityFrames > 0) {
+        int32_t targetFrames = std::max(burstFrames * 4, (capacityFrames * 3) / 4);
+        targetFrames = std::min(targetFrames, capacityFrames);
+        aaudio_result_t setFrames = AAudioStream_setBufferSizeInFrames(stream, targetFrames);
+        if (setFrames > 0) {
+            LOGD("[Native] AAudio buffer frames: burst=%d capacity=%d target=%d actual=%d",
+                 burstFrames, capacityFrames, targetFrames, setFrames);
+        }
+    }
     return true;
 }
 
@@ -60,10 +76,43 @@ void AAudioEngine::start() {
 }
 
 void AAudioEngine::write(const uint8_t* data, size_t sizeBytes) {
-    if (stream) {
-        // timeout 100ms
-        AAudioStream_write(stream, data, sizeBytes / 4,
-                           100000000);  // divide by 2 for int16 frames (stereo? 4 bytes)
+    if (!stream || sizeBytes < 4) return;
+
+    int32_t totalFrames = static_cast<int32_t>(sizeBytes / 4);
+    int32_t writtenFrames = 0;
+    int timeoutStreak = 0;
+
+    while (writtenFrames < totalFrames) {
+        const uint8_t* writePtr = data + (writtenFrames * 4);
+        int32_t framesLeft = totalFrames - writtenFrames;
+        int32_t maxWriteFrames = std::max<int32_t>(96, burstFrames * 2);
+        int32_t requestFrames = std::min(framesLeft, maxWriteFrames);
+        aaudio_result_t result = AAudioStream_write(stream, writePtr, requestFrames, 15000000);
+
+        if (result > 0) {
+            writtenFrames += result;
+            timeoutStreak = 0;
+            continue;
+        }
+
+        if (result == 0 || result == AAUDIO_ERROR_TIMEOUT) {
+            timeoutStreak++;
+            if (timeoutStreak >= 3) {
+                static int timeoutLogCount = 0;
+                if ((timeoutLogCount++ % 50) == 0) {
+                    LOGE("[Native] AAudio short write timeout (%d/%d frames)",
+                         writtenFrames, totalFrames);
+                }
+                break;
+            }
+            continue;
+        }
+
+        static int errorLogCount = 0;
+        if ((errorLogCount++ % 20) == 0) {
+            LOGE("[Native] AAudio write error: %d", result);
+        }
+        break;
     }
 }
 

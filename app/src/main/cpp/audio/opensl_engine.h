@@ -5,6 +5,7 @@
 #include <SLES/OpenSLES_Android.h>
 
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 
 #include "audio_common.h"
@@ -19,7 +20,8 @@ class OpenSLEngine : public AudioEngine {
 
     std::mutex queueMutex;
     std::condition_variable queueCv;
-    bool bufferReady = true;  // Simple flow control
+    static constexpr int kQueueDepth = 4;
+    int availableSlots = kQueueDepth;
 
     static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context);
 

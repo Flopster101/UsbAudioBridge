@@ -47,16 +47,24 @@ void JavaAudioTrackEngine::start() {
 
 void JavaAudioTrackEngine::write(const uint8_t* data, size_t sizeBytes) {
     JNIEnv* env = getEnv();
-    if (env && prepared && serviceObj) {
-        // Create DirectByteBuffer to avoid copy
-        // Note: 'data' pointer must remain valid during the call.
-        // Since this is synchronous, it's fine.
-        jobject byteBuffer = env->NewDirectByteBuffer((void*)data, sizeBytes);
-        if (byteBuffer) {
-            env->CallVoidMethod(serviceObj, midWrite, byteBuffer, (jint)sizeBytes);
-            env->DeleteLocalRef(byteBuffer);
+    if (!env || !prepared || !serviceObj || !data || sizeBytes == 0) return;
+
+    if (!directBuffer || directBufferPtr != data || directBufferCapacity < sizeBytes) {
+        if (directBuffer) {
+            env->DeleteGlobalRef(directBuffer);
+            directBuffer = nullptr;
         }
+
+        jobject localBuffer = env->NewDirectByteBuffer((void*)data, sizeBytes);
+        if (!localBuffer) return;
+        directBuffer = env->NewGlobalRef(localBuffer);
+        env->DeleteLocalRef(localBuffer);
+        if (!directBuffer) return;
+        directBufferPtr = data;
+        directBufferCapacity = sizeBytes;
     }
+
+    env->CallVoidMethod(serviceObj, midWrite, directBuffer, (jint)sizeBytes);
 }
 
 void JavaAudioTrackEngine::stop() {
@@ -68,6 +76,12 @@ void JavaAudioTrackEngine::stop() {
 
 void JavaAudioTrackEngine::close() {
     JNIEnv* env = getEnv();
+    if (env && directBuffer) {
+        env->DeleteGlobalRef(directBuffer);
+        directBuffer = nullptr;
+        directBufferPtr = nullptr;
+        directBufferCapacity = 0;
+    }
     if (env && prepared && serviceObj) {
         env->CallVoidMethod(serviceObj, midRelease);
     }

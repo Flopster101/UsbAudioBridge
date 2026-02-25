@@ -16,19 +16,22 @@ public:
     size_t write(const uint8_t* data, size_t count) {
         size_t current_tail = tail_.load(std::memory_order_acquire);
         size_t available = size_ - (head_.load(std::memory_order_relaxed) - current_tail);
-
-        if (count > available) return 0;
+        // Avoid all-or-nothing drops under transient jitter.
+        // Keep sample/frame alignment (16-bit stereo = 4 bytes/frame).
+        size_t to_write = std::min(count, available);
+        to_write -= (to_write % 4);
+        if (to_write == 0) return 0;
 
         size_t write_idx = head_.load(std::memory_order_relaxed) % size_;
-        size_t first_chunk = std::min(count, size_ - write_idx);
+        size_t first_chunk = std::min(to_write, size_ - write_idx);
 
         memcpy(&buffer_[write_idx], data, first_chunk);
-        if (first_chunk < count) {
-            memcpy(&buffer_[0], data + first_chunk, count - first_chunk);
+        if (first_chunk < to_write) {
+            memcpy(&buffer_[0], data + first_chunk, to_write - first_chunk);
         }
 
-        head_.fetch_add(count, std::memory_order_release);
-        return count;
+        head_.fetch_add(to_write, std::memory_order_release);
+        return to_write;
     }
 
     size_t read(uint8_t* dest, size_t count) {

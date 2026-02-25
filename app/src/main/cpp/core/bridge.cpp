@@ -43,8 +43,16 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
 
   // Configs: Try provided period size, or Smart Auto
   std::vector<size_t> periods;
+  std::vector<unsigned int> period_counts;
   // Expanded list to hit exact "/4" targets for common buffer sizes (30ms=1440->360, 20ms=960->240, etc)
   std::vector<size_t> candidates = {4096, 2048, 1024, 960, 512, 480, 360, 256, 240, 192, 128, 120, 96, 64};
+  // Larger buffer presets can tolerate/benefit from a less aggressive ALSA period layout.
+  double buffer_ms = (rb->capacity() / 4.0) * 1000.0 / (rate > 0 ? rate : 48000);
+  if (buffer_ms >= 60.0) {
+    period_counts = {6, 8, 4};
+  } else {
+    period_counts = {4, 6, 8};
+  }
 
   if (requested_period_size > 0) {
     periods.push_back((size_t)requested_period_size);
@@ -77,31 +85,35 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
   for (int retry = 0; retry < 20 && isRunning; retry++) {
     config.rate = rate;
     for (size_t p_size : periods) {
-      // Ensure period fits in ring buffer (bytes)
-      if (p_size * 4 > rb->capacity()) {
-           continue;
+      for (unsigned int p_count : period_counts) {
+        // Ensure period fits in ring buffer (bytes)
+        if (p_size * 4 > rb->capacity()) {
+          continue;
+        }
+        config.period_size = p_size;
+        config.period_count = p_count;
+
+        pcm = pcm_open(card, device, PCM_IN, &config);
+
+        if (pcm && pcm_is_ready(pcm)) {
+          opened = true;
+          if (out_period_size)
+            *out_period_size = (int)p_size;
+          LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u, "
+               "Period: %zu, Count: %u)",
+               rate, p_size, p_count);
+          reportStateToJava(2); // 2 = WAITING (PCM Open, No Data)
+          break;
+        }
+
+        if (pcm) {
+          LOGE("[Native] Config %zu x %u failed: %s", p_size, p_count, pcm_get_error(pcm));
+          pcm_close(pcm);
+          pcm = nullptr;
+        }
       }
-      config.period_size = p_size;
-      config.period_count = 4;
-
-      pcm = pcm_open(card, device, PCM_IN, &config);
-
-      if (pcm && pcm_is_ready(pcm)) {
-        opened = true;
-        if (out_period_size)
-          *out_period_size = (int)p_size;
-        LOGD("[Native] PCM Device ready. Waiting for Host stream... (Rate: %u, "
-             "Period: %zu)",
-             rate, p_size);
-        reportStateToJava(2); // 2 = WAITING (PCM Open, No Data)
+      if (opened)
         break;
-      }
-
-      if (pcm) {
-        LOGE("[Native] Config %zu failed: %s", p_size, pcm_get_error(pcm));
-        pcm_close(pcm);
-        pcm = nullptr;
-      }
     }
 
     if (opened)
@@ -140,9 +152,12 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
 
     int res = pcm_read(pcm, local_buf.data(), chunk_bytes);
     if (res == 0) {
-      if (rb->write(local_buf.data(), chunk_bytes) == 0) {
+      size_t written = rb->write(local_buf.data(), chunk_bytes);
+      if (written < chunk_bytes) {
+        size_t dropped = chunk_bytes - written;
         if (overrunCount++ % 50 == 0) {
-          LOGE("[Native] RING BUFFER OVERRUN! (dropped %u bytes)", chunk_bytes);
+          LOGE("[Native] RING BUFFER OVERRUN! (wrote %zu/%u, dropped %zu bytes)",
+               written, chunk_bytes, dropped);
         }
       }
       // Reset error count on success
@@ -292,12 +307,17 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
 
   // Use provided buffer size (Minimum 480 to avoid issues)
   size_t deep_buffer_frames = (size_t)std::max(480, bufferSizeFrames);
+  // Keep a small internal guard margin to absorb scheduler/USB jitter on
+  // older devices without changing the user-visible buffer setting.
+  size_t jitter_guard_frames = std::max<size_t>(240, deep_buffer_frames / 4);
+  size_t effective_buffer_frames = deep_buffer_frames + jitter_guard_frames;
   LOGD("[Native] Starting Speaker Bridge. Buffer: %zu frames, PeriodReq: %d, "
-       "Engine: %d, Rate: %d",
-       deep_buffer_frames, periodSizeFrames, engineType, sampleRate);
+       "Engine: %d, Rate: %d, Guard: +%zu",
+       deep_buffer_frames, periodSizeFrames, engineType, sampleRate,
+       jitter_guard_frames);
 
   size_t bytes_per_frame = 4; // 16-bit stereo
-  size_t rb_size = deep_buffer_frames * bytes_per_frame;
+  size_t rb_size = effective_buffer_frames * bytes_per_frame;
   RingBuffer rb(rb_size);
 
   int actual_period_size = 0;
@@ -332,9 +352,18 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
 
   engine->start();
 
-  // Pre-roll: Wait briefly for data to populate (prevents immediate underrun)
-  // Target 50ms, but cap at 50% of buffer to prevent deadlock on small buffers.
-  size_t target_preroll_bytes = (size_t)(rate * 50 / 1000) * bytes_per_frame;
+  // Pre-roll: wait for a stable initial fill before playback starts.
+  // Use a slightly higher target on larger buffers for older-device stability.
+  size_t configured_ms = (size_t)((deep_buffer_frames * 1000) / rate);
+  size_t target_preroll_ms = 50;
+  if (configured_ms >= 80) {
+    target_preroll_ms = 65;
+  } else if (configured_ms >= 60) {
+    target_preroll_ms = 55;
+  }
+  // Cap at 50% of ring capacity to avoid deadlock on tiny buffers.
+  size_t target_preroll_bytes =
+      (size_t)(rate * target_preroll_ms / 1000) * bytes_per_frame;
   if (target_preroll_bytes > rb.capacity() / 2) {
       target_preroll_bytes = rb.capacity() / 2;
   }
@@ -342,7 +371,6 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   if (target_preroll_bytes == 0) target_preroll_bytes = bytes_per_frame;
 
   LOGD("[Native] Pre-rolling (Target: %zu bytes)...", target_preroll_bytes);
-  int wait_count = 0;
   while (isRunning &&
          rb.available() < target_preroll_bytes) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -353,21 +381,139 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   int32_t burstFrames = engine->getBurstFrames();
   if (burstFrames <= 0)
     burstFrames = 192; // Fallback
+  int32_t rawBurstFrames = burstFrames;
 
-  // Optimize: Process in chunks of at least 480 frames (10ms) to reduce CPU overhead
-  // from too many small loop iterations.
-  int32_t chunkFrames = std::max(burstFrames, 480);
+  const char *backendName = "AAudio";
+  int32_t minTargetFrames = 120;
+  int32_t maxTargetFrames = 480;
+  size_t lowWaterDivisor = 4;
+  size_t highWaterDivisor = 2;
+  int emptySleepUs = 500;
+  if (engineType == 1) {
+    backendName = "OpenSL";
+    minTargetFrames = 96;
+    maxTargetFrames = 192;
+    lowWaterDivisor = 3;
+    highWaterDivisor = 2;
+    emptySleepUs = 500;
+  } else if (engineType == 2) {
+    backendName = "AudioTrack";
+    minTargetFrames = 120;
+    maxTargetFrames = 480;
+    lowWaterDivisor = 3;
+    highWaterDivisor = 2;
+    emptySleepUs = 400;
+  } else {
+    backendName = "AAudio";
+    minTargetFrames = 96;
+    maxTargetFrames = 240;
+    // Wider hysteresis for AAudio to avoid rapid normal/reduced oscillation.
+    lowWaterDivisor = 8;
+    highWaterDivisor = 2;
+    emptySleepUs = 250;
+  }
+
+  // Some devices report very large "burst" values for AAudio/AudioTrack.
+  // Clamp to sane ranges for bridge chunking so adaptive logic stays valid.
+  int32_t maxBurstFrames = 384;
+  if (engineType == 1) {
+    maxBurstFrames = 256;
+  } else if (engineType == 2) {
+    maxBurstFrames = 960;
+  } else {
+    maxBurstFrames = 384;
+  }
+  burstFrames = std::max<int32_t>(96, std::min<int32_t>(burstFrames, maxBurstFrames));
+  if (burstFrames != rawBurstFrames) {
+    LOGD("[Native] %s burst clamped: raw=%d, using=%d", backendName, rawBurstFrames,
+         burstFrames);
+  }
+
+  // Use a chunk close to the capture period when available.
+  // Backend-specific bounds: AAudio prefers smaller writes for stability on
+  // some older devices, AudioTrack can tolerate bigger chunks.
+  int32_t targetFrames = (actual_period_size > 0) ? actual_period_size : burstFrames;
+  int32_t boundedTarget =
+      std::max<int32_t>(minTargetFrames, std::min<int32_t>(targetFrames, maxTargetFrames));
+  int32_t chunkFrames = std::max(burstFrames, boundedTarget);
   size_t chunkBytes = chunkFrames * bytes_per_frame;
+  int32_t reducedChunkFrames = std::max<int32_t>(96, chunkFrames / 2);
+  if (engineType == 1) {
+    // OpenSL queueing is less predictable with tiny buffers.
+    reducedChunkFrames = std::max<int32_t>(burstFrames, reducedChunkFrames);
+  }
+  if (reducedChunkFrames > chunkFrames) {
+    reducedChunkFrames = chunkFrames;
+  }
+  size_t reducedChunkBytes = reducedChunkFrames * bytes_per_frame;
+  size_t lowWaterBytes =
+      std::max(chunkBytes, rb.capacity() / std::max<size_t>(1, lowWaterDivisor));
+  if (lowWaterBytes > rb.capacity()) {
+    lowWaterBytes = rb.capacity();
+  }
+  size_t highWaterBytes =
+      std::max(lowWaterBytes + reducedChunkBytes,
+               rb.capacity() / std::max<size_t>(1, highWaterDivisor));
+  size_t minHysteresisBytes = std::max(chunkBytes, reducedChunkBytes * 3);
+  if (highWaterBytes < lowWaterBytes + minHysteresisBytes) {
+    highWaterBytes = lowWaterBytes + minHysteresisBytes;
+  }
+  if (highWaterBytes > rb.capacity()) {
+    highWaterBytes = rb.capacity();
+  }
+  if (highWaterBytes <= lowWaterBytes) {
+    if (lowWaterBytes > reducedChunkBytes) {
+      lowWaterBytes -= reducedChunkBytes;
+    } else {
+      lowWaterBytes = rb.capacity() / 2;
+    }
+    highWaterBytes = rb.capacity();
+  }
+  bool useReducedChunk = false;
+  LOGD("[Native] %s chunk strategy: normal=%d, reduced=%d, watermarks=%zu/%zu bytes, "
+       "emptySleep=%dus",
+       backendName, chunkFrames, reducedChunkFrames, lowWaterBytes, highWaterBytes, emptySleepUs);
   std::vector<uint8_t> p_buf(chunkBytes);
 
   // Consume Loop
   int stats_counter = 0;
   bool isStreaming = true; // Initially true after pre-roll
   auto lastDataTime = std::chrono::steady_clock::now();
+  auto lastModeChangeTime = lastDataTime;
+  auto lastModeLogTime = lastDataTime - std::chrono::seconds(10);
+  auto minModeDwell =
+      std::chrono::milliseconds((engineType == 0) ? 120 : 80);
+  int modeSwitchCount = 0;
 
   while (isRunning) {
     auto now = std::chrono::steady_clock::now();
-    size_t read_bytes = rb.read(p_buf.data(), chunkBytes);
+    size_t availableBeforeRead = rb.available();
+    bool canSwitchMode = (now - lastModeChangeTime) >= minModeDwell;
+    if (canSwitchMode && !useReducedChunk && availableBeforeRead < lowWaterBytes) {
+      useReducedChunk = true;
+      lastModeChangeTime = now;
+      modeSwitchCount++;
+      if ((now - lastModeLogTime) >= std::chrono::milliseconds(2000)) {
+        LOGD("[Native] Low ring fill (%zu bytes), switching to reduced chunk. "
+             "(switches=%d)",
+             availableBeforeRead, modeSwitchCount);
+        lastModeLogTime = now;
+      }
+    } else if (canSwitchMode && useReducedChunk &&
+               availableBeforeRead > highWaterBytes) {
+      useReducedChunk = false;
+      lastModeChangeTime = now;
+      modeSwitchCount++;
+      if ((now - lastModeLogTime) >= std::chrono::milliseconds(2000)) {
+        LOGD("[Native] Ring fill recovered (%zu bytes), restoring normal chunk. "
+             "(switches=%d)",
+             availableBeforeRead, modeSwitchCount);
+        lastModeLogTime = now;
+      }
+    }
+
+    size_t desiredChunkBytes = useReducedChunk ? reducedChunkBytes : chunkBytes;
+    size_t read_bytes = rb.read(p_buf.data(), desiredChunkBytes);
 
     if (read_bytes > 0) {
       lastDataTime = now;
@@ -394,7 +540,7 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
         reportStateToJava(4); // 4 = IDLING
         LOGD("[Native] Stream idle for 1s. State -> Waiting.");
       }
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
+      std::this_thread::sleep_for(std::chrono::microseconds(emptySleepUs));
     }
 
     // Periodic stats update (only when streaming)

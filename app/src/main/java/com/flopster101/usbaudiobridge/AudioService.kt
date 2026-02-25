@@ -73,7 +73,7 @@ class AudioService : Service() {
             val channelConfig = if (channels == 1) android.media.AudioFormat.CHANNEL_OUT_MONO else android.media.AudioFormat.CHANNEL_OUT_STEREO
             val format = android.media.AudioFormat.ENCODING_PCM_16BIT
             val minBuf = android.media.AudioTrack.getMinBufferSize(rate, channelConfig, format)
-            val bufferSize = kotlin.math.max(minBuf, rate / 10 * 4) // ~400ms buffer for safety
+            val bufferSize = kotlin.math.max(minBuf, rate / 10 * 4) // ~100ms stereo buffer at 48k
 
             audioTrack = android.media.AudioTrack.Builder()
                 .setAudioAttributes(android.media.AudioAttributes.Builder()
@@ -103,8 +103,18 @@ class AudioService : Service() {
 
     // Called from C++ JNI
     fun writeAudioTrack(buffer: java.nio.ByteBuffer, size: Int) {
-        if (audioTrack == null) return
-        audioTrack?.write(buffer, size, android.media.AudioTrack.WRITE_BLOCKING)
+        val track = audioTrack ?: return
+        var remaining = size
+        while (remaining > 0) {
+            val written = track.write(buffer, remaining, android.media.AudioTrack.WRITE_BLOCKING)
+            if (written <= 0) {
+                if (written < 0) {
+                    Log.w(TAG, "AudioTrack write error: $written")
+                }
+                break
+            }
+            remaining -= written
+        }
     }
 
     // Called from C++ JNI

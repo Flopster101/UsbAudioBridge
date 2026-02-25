@@ -5,7 +5,9 @@
 void OpenSLEngine::bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context) {
     OpenSLEngine* engine = static_cast<OpenSLEngine*>(context);
     std::lock_guard<std::mutex> lock(engine->queueMutex);
-    engine->bufferReady = true;
+    if (engine->availableSlots < kQueueDepth) {
+        engine->availableSlots++;
+    }
     engine->queueCv.notify_one();
 }
 
@@ -26,7 +28,8 @@ bool OpenSLEngine::open(int rate, int channelCount) {
     if (result != SL_RESULT_SUCCESS) return false;
 
     // 3. Configure Audio Source
-    SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2};
+    SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
+                                                       kQueueDepth};
     SLDataFormat_PCM format_pcm = {
         SL_DATAFORMAT_PCM,           (SLuint32)channelCount,
         (SLuint32)(rate * 1000),     SL_PCMSAMPLEFORMAT_FIXED_16,
@@ -72,18 +75,46 @@ void OpenSLEngine::start() {
 void OpenSLEngine::write(const uint8_t* data, size_t sizeBytes) {
     if (!playerBufferQueue) return;
 
-    // Wait for buffer slot
-    {
+    // Wait for a queue slot; do not enqueue blindly when the queue is full.
+    bool ready = false;
+    for (int i = 0; i < 3 && !ready; ++i) {
         std::unique_lock<std::mutex> lock(queueMutex);
-        queueCv.wait_for(lock, std::chrono::milliseconds(100), [this] { return bufferReady; });
-        bufferReady = false;
+        ready = queueCv.wait_for(lock, std::chrono::milliseconds(20),
+                                 [this] { return availableSlots > 0; });
+        if (ready) {
+            availableSlots--;
+        }
     }
 
-    (*playerBufferQueue)->Enqueue(playerBufferQueue, data, sizeBytes);
+    if (!ready) {
+        static int waitTimeoutLogCount = 0;
+        if ((waitTimeoutLogCount++ % 50) == 0) {
+            LOGE("[Native] OpenSL queue wait timeout");
+        }
+        return;
+    }
+
+    SLresult result = (*playerBufferQueue)->Enqueue(playerBufferQueue, data, sizeBytes);
+    if (result != SL_RESULT_SUCCESS) {
+        static int enqueueErrorLogCount = 0;
+        if ((enqueueErrorLogCount++ % 50) == 0) {
+            LOGE("[Native] OpenSL enqueue failed: %d", result);
+        }
+        std::lock_guard<std::mutex> lock(queueMutex);
+        if (availableSlots < kQueueDepth) {
+            availableSlots++;
+        }
+    }
 }
 
 void OpenSLEngine::stop() {
     if (playerPlay) (*playerPlay)->SetPlayState(playerPlay, SL_PLAYSTATE_STOPPED);
+    if (playerBufferQueue) (*playerBufferQueue)->Clear(playerBufferQueue);
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        availableSlots = kQueueDepth;
+    }
+    queueCv.notify_all();
 }
 
 void OpenSLEngine::close() {
