@@ -16,3 +16,18 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# JNI callbacks/method lookups resolved by exact Java method name from native code.
+-keepclassmembers class com.flopster101.usbaudiobridge.AudioService {
+    void onNativeLog(java.lang.String);
+    void onNativeError(java.lang.String);
+    void onNativeState(int);
+    void onNativeStats(int,int,int);
+    void onNativeThreadStart(int);
+    void onOutputDisconnect();
+    int initAudioTrack(int,int);
+    void startAudioTrack();
+    void writeAudioTrack(java.nio.ByteBuffer,int);
+    void stopAudioTrack();
+    void releaseAudioTrack();
+}
