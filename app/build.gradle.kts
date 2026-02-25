@@ -52,23 +52,21 @@ android {
         }
     }
 
-    // Toggle debug minification:
-    // Use: ./gradlew assembleDebug -PminifyDebug=true
-    val minifyDebug: Boolean = project.findProperty("minifyDebug")?.toString()?.toBoolean() ?: false
-
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = minifyDebug
-            isShrinkResources = minifyDebug
-            if (minifyDebug) {
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            }
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        create("optimizedDebug") {
+            initWith(getByName("release"))
+            // Keep release-like optimizations but sign with debug key for easy installs.
+            signingConfig = signingConfigs.getByName("debug")
+            versionNameSuffix = "-optdebug"
+            matchingFallbacks += listOf("release")
         }
     }
     compileOptions {
