@@ -348,8 +348,6 @@ class AudioService : Service() {
                     }
                 }
             })
-            setFlags(android.media.session.MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or 
-                     android.media.session.MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
         }
     }
 
@@ -619,7 +617,7 @@ class AudioService : Service() {
                     startForeground(1, createNotification("Inactive", false))
                 }
             } else {
-                stopForeground(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
             }
             
             updateUiState()
@@ -746,7 +744,7 @@ class AudioService : Service() {
             }
         } else {
             // Stop foreground and remove notification
-            stopForeground(true)
+            stopForeground(STOP_FOREGROUND_REMOVE)
         }
     }
 }
