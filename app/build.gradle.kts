@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.flopster101.usbaudiobridge"
-        minSdk = 30
+        minSdk = 26
         targetSdk = 34
         versionCode = 1000
         versionName = "1.0.0"
