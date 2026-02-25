@@ -1,11 +1,32 @@
 #include "aaudio_engine.h"
 
 #include <aaudio/AAudio.h>
+#include <dlfcn.h>
 
 #include "../logging/logging.h"
 
 // Forward declaration for error callback
 static void aaudioErrorCallback(AAudioStream* stream, void* userData, aaudio_result_t error);
+
+namespace {
+using SetInputPresetFn = void (*)(AAudioStreamBuilder*, aaudio_input_preset_t);
+
+SetInputPresetFn resolveSetInputPresetFn() {
+    // Keep the library loaded for process lifetime once resolved.
+    static void* handle = dlopen("libaaudio.so", RTLD_NOW | RTLD_LOCAL);
+    if (!handle) {
+        return nullptr;
+    }
+    return reinterpret_cast<SetInputPresetFn>(dlsym(handle, "AAudioStreamBuilder_setInputPreset"));
+}
+
+void maybeSetInputPreset(AAudioStreamBuilder* builder, int inputPreset) {
+    static SetInputPresetFn setInputPresetFn = resolveSetInputPresetFn();
+    if (setInputPresetFn) {
+        setInputPresetFn(builder, static_cast<aaudio_input_preset_t>(inputPreset));
+    }
+}
+}  // namespace
 
 // --- AAudio Output Engine ---
 
@@ -70,7 +91,7 @@ bool AAudioInputEngine::open(int rate, int channelCount) {
     AAudioStreamBuilder_setChannelCount(builder, channelCount);
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
     AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_INPUT);
-    AAudioStreamBuilder_setInputPreset(builder, (aaudio_input_preset_t)inputPreset);
+    maybeSetInputPreset(builder, inputPreset);
     // Error callback handling for disconnect? For now simple.
 
     if (AAudioStreamBuilder_openStream(builder, &stream) != AAUDIO_OK) {
