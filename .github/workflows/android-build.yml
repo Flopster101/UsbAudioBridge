@@ -74,11 +74,12 @@ jobs:
           mkdir -p artifact
           APK=$(find app/build/outputs -type f -name "*.apk" | grep -Ei 'optimized[-_]?debug' | head -n1 || find app/build/outputs -type f -name "*.apk" | head -n1)
           if [ -z "$APK" ]; then echo "No APK found" >&2; exit 1; fi
-          cp "$APK" artifact/app-optimizedDebug.apk
+          OUT_NAME="UsbAudioBridge-${{ steps.vars.outputs.short_sha }}-optimizedDebug.apk"
+          cp "$APK" "artifact/$OUT_NAME"
         shell: bash
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UsbAudioBridge-${{ steps.vars.outputs.short_sha }}-apk
-          path: artifact/app-optimizedDebug.apk
+          name: UsbAudioBridge-${{ steps.vars.outputs.short_sha }}-optimizedDebug
+          path: artifact/UsbAudioBridge-${{ steps.vars.outputs.short_sha }}-optimizedDebug.apk
