@@ -68,7 +68,7 @@ Note: CI artifacts are debug-only and may be unoptimized.
 
 ## Build
 ```bash
-cd UsbAudioMonitor
+cd UsbAudioBridge
 ./gradlew assembleDebug
 ```
 The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
