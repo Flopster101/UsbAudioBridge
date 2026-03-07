@@ -3,44 +3,23 @@ name: Android CI - optimizedDebug build
 on:
   push:
     branches: ['main', 'master']
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.txt'
   pull_request:
     branches: ['main', 'master']
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.txt'
   workflow_dispatch:
 
 jobs:
-  filter:
-    name: Filter changes
-    runs-on: ubuntu-latest
-    outputs:
-      code: ${{ steps.filter.outputs.code }}
-      docs: ${{ steps.filter.outputs.docs }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Filter changed paths
-        id: filter
-        uses: dorny/paths-filter@v2
-        with:
-          filters: |
-            docs:
-              - 'README.md'
-              - 'docs/**'
-              - '**/*.md'
-              - '**/*.txt'
-            code:
-              - '**/*'
-              - '!README.md'
-              - '!docs/**'
-              - '!**/*.md'
-              - '!**/*.txt'
-
   build:
     name: Build optimizedDebug APK
-    needs: filter
-    if: ${{ needs.filter.outputs.code == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     env:
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
