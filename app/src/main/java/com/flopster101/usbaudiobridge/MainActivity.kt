@@ -81,14 +81,30 @@ class MainActivity : ComponentActivity() {
             appendLog(msg)
 
             if (msg.contains("Your kernel does not support UAC")) {
-                uiState = uiState.copy(showNoUacSupportError = true)
+                val short = when {
+                    msg.contains("UAC1", ignoreCase = true) -> "No UAC1 support"
+                    msg.contains("UAC2", ignoreCase = true) -> "No UAC2 support"
+                    uiState.uacVersionOption == 1 -> "No UAC1 support"
+                    else -> "No UAC2 support"
+                }
+                uiState = uiState.copy(
+                    showNoUacSupportError = true,
+                    gadgetStatusError = short
+                )
             }
             if (msg.contains("Cannot keep ADB enabled")) {
                 uiState = uiState.copy(
                     showKeepAdbError = true,
                     lastGadgetFailureWasKeepAdb = true,
-                    showGadgetSetupError = false
+                    showGadgetSetupError = false,
+                    gadgetStatusError = "Keep ADB unsupported"
                 )
+            }
+            if (msg.contains("Failed to bind UDC", ignoreCase = true)) {
+                uiState = uiState.copy(gadgetStatusError = "UDC bind failed")
+            }
+            if (msg.contains("[App] Failed to configure gadget.")) {
+                uiState = uiState.copy(gadgetStatusError = uiState.gadgetStatusError ?: "Setup failed")
             }
         }
     }
@@ -172,12 +188,13 @@ class MainActivity : ComponentActivity() {
             }
 
             uiState = uiState.copy(
-                isGadgetEnabled = success,
+                isGadgetEnabled = success, 
                 isGadgetPending = false,
                 showOldKernelNotice = showNotice,
                 showGadgetSetupError = !success && uiState.lastGadgetActionWasEnable && !uiState.lastGadgetFailureWasKeepAdb,
                 lastGadgetFailureWasKeepAdb = if (success) false else uiState.lastGadgetFailureWasKeepAdb,
-                lastGadgetActionWasEnable = if (success) false else uiState.lastGadgetActionWasEnable
+                lastGadgetActionWasEnable = if (success) false else uiState.lastGadgetActionWasEnable,
+                gadgetStatusError = if (success) null else uiState.gadgetStatusError
             )
             audioService?.setGadgetEnabled(success)
         }
@@ -422,7 +439,8 @@ class MainActivity : ComponentActivity() {
                                      uiState = uiState.copy(
                                          isGadgetPending = true,
                                          lastGadgetActionWasEnable = true,
-                                         showGadgetSetupError = false
+                                         showGadgetSetupError = false,
+                                         gadgetStatusError = null
                                      )
                                      audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption, uiState.uacVersionOption)
                                  } else {
@@ -431,7 +449,8 @@ class MainActivity : ComponentActivity() {
                                          isGadgetPending = true,
                                          lastGadgetActionWasEnable = false,
                                          showGadgetSetupError = false,
-                                         lastGadgetFailureWasKeepAdb = false
+                                         lastGadgetFailureWasKeepAdb = false,
+                                         gadgetStatusError = null
                                      )
                                      audioService?.setGadgetEnabled(false)
                                      audioService?.stopBridge()
@@ -626,6 +645,7 @@ class MainActivity : ComponentActivity() {
                                     showKeepAdbError = false,
                                     lastGadgetFailureWasKeepAdb = false,
                                     lastGadgetActionWasEnable = false,
+                                    gadgetStatusError = null,
                                     keepScreenOnOption = settingsRepo.getKeepScreenOn(),
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),

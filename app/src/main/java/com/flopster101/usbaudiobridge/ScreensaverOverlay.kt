@@ -168,6 +168,25 @@ fun ScreensaverOverlay(
                 textAlign = TextAlign.Center
             )
 
+            // Gadget status
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Gadget: ",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    state.getGadgetStatusLabel(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(state.getGadgetStatusColor()),
+                    textAlign = TextAlign.Center
+                )
+            }
+
             // State
             Row(
                 horizontalArrangement = Arrangement.Center,

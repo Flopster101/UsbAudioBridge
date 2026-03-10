@@ -233,6 +233,8 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
+                        StatusRow("Gadget", state.getGadgetStatusLabel(), Color(state.getGadgetStatusColor()))
+                        Spacer(Modifier.height(8.dp))
                         StatusRow("State", state.serviceState, Color(state.serviceStateColor))
                         Spacer(Modifier.height(8.dp))
                         StatusRow("Sample rate", state.sampleRate)

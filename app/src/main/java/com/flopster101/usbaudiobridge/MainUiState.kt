@@ -28,6 +28,7 @@ data class MainUiState(
     val showKeepAdbError: Boolean = false,
     val lastGadgetFailureWasKeepAdb: Boolean = false,
     val lastGadgetActionWasEnable: Boolean = false,
+    val gadgetStatusError: String? = null,
     val keepScreenOnOption: Boolean = false,
     val screensaverEnabled: Boolean = false,
     val screensaverTimeout: Int = 15,
@@ -41,7 +42,7 @@ data class MainUiState(
     val muteOnMediaButton: Boolean = true,
 
     // Status
-    val serviceState: String = "Idle",
+    val serviceState: String = "--",
     val serviceStateColor: Long = 0xFF888888, // ARGB Long
     val sampleRate: String = "--",
     val periodSize: String = "--",
@@ -58,3 +59,28 @@ data class MainUiState(
     // Playback device
     val playbackDeviceType: PlaybackDeviceType = PlaybackDeviceType.UNKNOWN
 )
+
+fun MainUiState.getGadgetStatusLabel(): String {
+    if (isGadgetPending) {
+        return if (lastGadgetActionWasEnable) "Enabling..." else "Disabling..."
+    }
+    gadgetStatusError?.let { return "Error: $it" }
+    if (!isGadgetEnabled) return "Disabled"
+
+    val active = activeFunctions.lowercase()
+    return when {
+        active.contains("uac1") -> "Enabled (UAC1)"
+        active.contains("uac2") -> "Enabled (UAC2)"
+        uacVersionOption == 1 -> "Enabled (UAC1)"
+        else -> "Enabled (UAC2)"
+    }
+}
+
+fun MainUiState.getGadgetStatusColor(): Long {
+    return when {
+        isGadgetPending -> 0xFFFFC107
+        gadgetStatusError != null -> 0xFFF44336
+        isGadgetEnabled -> 0xFF4CAF50
+        else -> 0xFF888888
+    }
+}

@@ -436,8 +436,11 @@ class AudioService : Service() {
         }
 
         if (!isBridgeRunning) {
-            val stateText = if (hasCaptureEverStarted) "Stopped" else "Idle"
-            broadcastState(stateText, 0xFF888888, 0)
+            if (!isGadgetEnabled) {
+                broadcastState("--", 0xFF888888, 0)
+                return
+            }
+            broadcastState("Idle", 0xFF888888, 0)
             return
         }
 
@@ -479,6 +482,7 @@ class AudioService : Service() {
     fun setGadgetEnabled(enabled: Boolean) {
         isGadgetEnabled = enabled
         refreshNotification()
+        updateUiState()
     }
 
     fun enableGadget(sampleRate: Int, keepAdb: Boolean, uacVersion: Int) {
