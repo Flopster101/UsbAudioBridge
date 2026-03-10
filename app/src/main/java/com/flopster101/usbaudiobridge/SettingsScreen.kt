@@ -465,62 +465,44 @@ fun SettingsScreen(
         }
 
         item {
-            var showUacDialog by remember { mutableStateOf(false) }
-            val versions = listOf(2, 1)
-            val labels = listOf("UAC2 (USB Audio Class 2.0)", "UAC1 (USB Audio Class 1.0)")
-
             GroupedSettingsCard(
-                position = SettingsGroupPosition.Top,
-                modifier = Modifier.fillMaxWidth().clickable { showUacDialog = true }
+                position = SettingsGroupPosition.Top
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("USB audio class", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Use UAC2 for best quality/performance. Use UAC1 for compatibility with older hosts (e.g. pre-Windows 10 1703).",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("USB audio class", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Use UAC2 for best quality/performance. Use UAC1 for compatibility with older hosts (e.g. pre-Windows 10 1703).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = state.uacVersionOption == 2,
+                            onClick = { onUacVersionChange(2) },
+                            label = { Text("UAC2") }
+                        )
+                        FilterChip(
+                            selected = state.uacVersionOption == 1,
+                            onClick = { onUacVersionChange(1) },
+                            label = { Text("UAC1") }
                         )
                     }
 
-                    val versionLabel = if (state.uacVersionOption == 1) "UAC1" else "UAC2"
+                    Spacer(Modifier.height(12.dp))
+
                     Text(
-                        text = versionLabel,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp)
+                        text = "Changing this requires restarting/resetting the USB Gadget.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
-            }
-
-            if (showUacDialog) {
-                SelectionDialog(
-                    title = "USB audio class",
-                    options = versions,
-                    labels = labels,
-                    selectedOption = state.uacVersionOption,
-                    onDismiss = { showUacDialog = false },
-                    onOptionSelected = {
-                        onUacVersionChange(it)
-                        showUacDialog = false
-                    },
-                    headerContent = {
-                        Column {
-                            Text(
-                                text = "Changing this requires restarting/resetting the USB Gadget.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            HorizontalDivider()
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
-                )
             }
         }
         item { Spacer(Modifier.height(2.dp)) }
