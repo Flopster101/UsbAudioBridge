@@ -12,3 +12,8 @@ captures/
 *.o
 *.a
 !app/src/main/cpp/tinyalsa/lib/README.md
+
+# keys
+key.properties
+*.jks
+*.keystore
