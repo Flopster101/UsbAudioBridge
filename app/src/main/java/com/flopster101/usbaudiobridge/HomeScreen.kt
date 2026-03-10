@@ -77,13 +77,27 @@ fun HomeScreen(
                             enabled = !state.isGadgetPending,
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
-                            Text(
-                                when {
-                                    state.isGadgetPending -> if (state.isGadgetEnabled) "Disabling..." else "Enabling..."
-                                    state.isGadgetEnabled -> "Disable USB Gadget"
-                                    else -> "Enable USB Gadget"
+                            val isPending = state.isGadgetPending
+                            val label = when {
+                                isPending && state.lastGadgetActionWasEnable -> "Enabling..."
+                                isPending -> "Disabling..."
+                                state.isGadgetEnabled -> "Disable USB Gadget"
+                                else -> "Enable USB Gadget"
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isPending) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(10.dp))
                                 }
-                            )
+                                Text(label)
+                            }
                         }
                         Spacer(Modifier.height(12.dp))
                         Button(
