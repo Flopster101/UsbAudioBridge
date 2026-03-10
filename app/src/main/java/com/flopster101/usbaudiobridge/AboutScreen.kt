@@ -84,7 +84,7 @@ fun AboutScreen() {
                     Spacer(Modifier.height(12.dp))
                     
                     Text(
-                        "Uses the Linux kernel's USB Gadget subsystem to expose a UAC2 (USB Audio Class 2.0) device, capturing audio from the host and playing it through your phone's speakers or connected audio devices.",
+                        "Uses the Linux kernel's USB Gadget subsystem to expose a UAC2 (USB Audio Class 2.0) device by default, with optional UAC1 compatibility mode for older hosts.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -121,7 +121,7 @@ fun AboutScreen() {
                     Spacer(Modifier.height(12.dp))
                     
                     Text(
-                        "Devices with kernels older than Linux 5.10 may require a custom kernel build with CONFIG_USB_CONFIGFS_F_UAC2=y enabled.",
+                        "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y; UAC1 compatibility mode requires CONFIG_USB_CONFIGFS_F_UAC1=y.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
@@ -129,7 +129,7 @@ fun AboutScreen() {
                     Spacer(Modifier.height(8.dp))
                     
                     Text(
-                        "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). If the app fails to enable the gadget, this is likely the cause.",
+                        "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). On older kernels, try UAC1 mode first.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                     )

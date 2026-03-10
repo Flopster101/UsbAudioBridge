@@ -26,6 +26,7 @@ fun SettingsScreen(
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
     onSampleRateChange: (Int) -> Unit,
+    onUacVersionChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
     onAutoRestartChange: (Boolean) -> Unit,
     onActiveDirectionsChange: (Int) -> Unit,
@@ -460,6 +461,66 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
+        }
+
+        item {
+            var showUacDialog by remember { mutableStateOf(false) }
+            val versions = listOf(2, 1)
+            val labels = listOf("UAC2 (USB Audio Class 2.0)", "UAC1 (USB Audio Class 1.0)")
+
+            ElevatedCard(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { showUacDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("USB audio class", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Use UAC2 for best quality/performance. Use UAC1 for compatibility with older hosts (e.g. pre-Windows 10 1703).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    val versionLabel = if (state.uacVersionOption == 1) "UAC1" else "UAC2"
+                    Text(
+                        text = versionLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
+                }
+            }
+
+            if (showUacDialog) {
+                SelectionDialog(
+                    title = "USB audio class",
+                    options = versions,
+                    labels = labels,
+                    selectedOption = state.uacVersionOption,
+                    onDismiss = { showUacDialog = false },
+                    onOptionSelected = {
+                        onUacVersionChange(it)
+                        showUacDialog = false
+                    },
+                    headerContent = {
+                        Column {
+                            Text(
+                                text = "Changing this requires restarting/resetting the USB Gadget.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                )
+            }
         }
 
         item {

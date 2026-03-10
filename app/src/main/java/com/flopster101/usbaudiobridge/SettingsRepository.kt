@@ -22,6 +22,9 @@ class SettingsRepository(context: Context) {
 
     fun saveSampleRate(rate: Int) = prefs.edit().putInt("sample_rate", rate).apply()
     fun getSampleRate(): Int = prefs.getInt("sample_rate", 48000)
+
+    fun saveUacVersion(version: Int) = prefs.edit().putInt("uac_version", version).apply()
+    fun getUacVersion(): Int = prefs.getInt("uac_version", 2) // 2 = UAC2 (default)
     
     fun saveKeepAdb(enabled: Boolean) = prefs.edit().putBoolean("keep_adb", enabled).apply()
     fun getKeepAdb(): Boolean = prefs.getBoolean("keep_adb", false)

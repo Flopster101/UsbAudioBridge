@@ -481,7 +481,7 @@ class AudioService : Service() {
         refreshNotification()
     }
 
-    fun enableGadget(sampleRate: Int, keepAdb: Boolean) {
+    fun enableGadget(sampleRate: Int, keepAdb: Boolean, uacVersion: Int) {
         serviceScope.launch {
              if (UsbGadgetManager.isGadgetActive()) {
                   UsbGadgetManager.applySeLinuxPolicy { msg -> broadcastLog(msg) }
@@ -490,8 +490,9 @@ class AudioService : Service() {
                   return@launch
              }
              
-             broadcastLog("[App] Setting up USB gadget config ($sampleRate Hz)...")
-             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo, keepAdb)
+             val uacLabel = if (uacVersion == 1) "UAC1" else "UAC2"
+             broadcastLog("[App] Setting up USB gadget config ($uacLabel, $sampleRate Hz)...")
+             val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo, keepAdb, uacVersion)
              if (success) {
                   broadcastLog("[App] Gadget configured. Please connect USB cable now.")
              } else {
@@ -573,7 +574,7 @@ class AudioService : Service() {
             val cardId = UsbGadgetManager.findAndPrepareCard { msg -> broadcastLog(msg) }
             
             if (cardId < 0) {
-                broadcastLog("[App] Error: UAC2 card not found. Check cable/host.")
+                broadcastLog("[App] Error: USB audio gadget card not found. Check cable/host.")
                 return@launch
             }
 

@@ -80,8 +80,8 @@ class MainActivity : ComponentActivity() {
             val msg = intent?.getStringExtra(AudioService.EXTRA_MSG) ?: return
             appendLog(msg)
             
-            if (msg.contains("Your kernel does not support UAC2")) {
-                uiState = uiState.copy(showNoUac2Error = true)
+            if (msg.contains("Your kernel does not support UAC")) {
+                uiState = uiState.copy(showNoUacSupportError = true)
             }
             if (msg.contains("Cannot keep ADB enabled")) {
                 uiState = uiState.copy(
@@ -253,6 +253,7 @@ class MainActivity : ComponentActivity() {
             periodSizeOption = settingsRepo.getPeriodSize(),
             engineTypeOption = settingsRepo.getEngineType(),
             sampleRateOption = settingsRepo.getSampleRate(),
+            uacVersionOption = settingsRepo.getUacVersion(),
             keepAdbOption = settingsRepo.getKeepAdb(),
             autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
             activeDirectionsOption = settingsRepo.getActiveDirections(),
@@ -384,10 +385,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         
-                        // Missing UAC2 support error
-                        if (uiState.showNoUac2Error) {
-                            NoUac2SupportDialog(
-                                onDismiss = { uiState = uiState.copy(showNoUac2Error = false) }
+                        // Missing selected UAC support error
+                        if (uiState.showNoUacSupportError) {
+                            NoUacSupportDialog(
+                                uacVersion = uiState.uacVersionOption,
+                                onDismiss = { uiState = uiState.copy(showNoUacSupportError = false) }
                             )
                         }
 
@@ -415,7 +417,7 @@ class MainActivity : ComponentActivity() {
                                          lastGadgetActionWasEnable = true,
                                          showGadgetSetupError = false
                                      )
-                                     audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption)
+                                     audioService?.enableGadget(uiState.sampleRateOption, uiState.keepAdbOption, uiState.uacVersionOption)
                                  } else {
                                      uiState = uiState.copy(
                                          isGadgetEnabled = false,
@@ -498,6 +500,10 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     uiState = uiState.copy(sampleRateOption = rate)
                                 }
+                            },
+                            onUacVersionChange = {
+                                uiState = uiState.copy(uacVersionOption = it)
+                                settingsRepo.saveUacVersion(it)
                             },
                             onKeepAdbChange = {
                                 uiState = uiState.copy(keepAdbOption = it)
@@ -588,6 +594,7 @@ class MainActivity : ComponentActivity() {
                                     periodSizeOption = settingsRepo.getPeriodSize(),
                                     engineTypeOption = settingsRepo.getEngineType(),
                                     sampleRateOption = settingsRepo.getSampleRate(),
+                                    uacVersionOption = settingsRepo.getUacVersion(),
                                     keepAdbOption = settingsRepo.getKeepAdb(),
 
                                     autoRestartOnOutputChange = settingsRepo.getAutoRestartOnOutputChange(),
@@ -596,6 +603,7 @@ class MainActivity : ComponentActivity() {
                                     notificationEnabled = settingsRepo.getNotificationEnabled(),
                                     showKernelNotice = false,
                                     showOldKernelNotice = false,
+                                    showNoUacSupportError = false,
                                     showGadgetSetupError = false,
                                     showKeepAdbError = false,
                                     lastGadgetFailureWasKeepAdb = false,

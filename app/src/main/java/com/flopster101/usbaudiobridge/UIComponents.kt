@@ -99,21 +99,21 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
         text = {
             Column {
                 Text(
-                    "This app requires USB Gadget UAC2 support in your device's kernel.",
+                    "This app requires USB Gadget audio support in your device's kernel (UAC2 recommended, UAC1 optional for compatibility).",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
                 Spacer(Modifier.height(12.dp))
                 
                 Text(
-                    "Devices with kernels older than Linux 5.10 may need a custom kernel build with CONFIG_USB_CONFIGFS_F_UAC2=y enabled.",
+                    "Depending on your selected mode, your kernel needs CONFIG_USB_CONFIGFS_F_UAC2=y or CONFIG_USB_CONFIGFS_F_UAC1=y.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
                 Spacer(Modifier.height(12.dp))
                 
                 Text(
-                    "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+).",
+                    "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). UAC1 is often available on older kernels.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -242,7 +242,11 @@ fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
 }
 
 @Composable
-fun NoUac2SupportDialog(onDismiss: () -> Unit) {
+fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
+    val uacLabel = if (uacVersion == 1) "UAC1" else "UAC2"
+    val uacLongName = if (uacVersion == 1) "USB Audio Class 1.0" else "USB Audio Class 2.0"
+    val configOption = if (uacVersion == 1) "CONFIG_USB_CONFIGFS_F_UAC1=y" else "CONFIG_USB_CONFIGFS_F_UAC2=y"
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -258,7 +262,7 @@ fun NoUac2SupportDialog(onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "Setup failed because your device's kernel does not support UAC2 (USB Audio Class 2).",
+                    "Setup failed because your device's kernel does not support $uacLabel ($uacLongName).",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
@@ -270,7 +274,7 @@ fun NoUac2SupportDialog(onDismiss: () -> Unit) {
                 )
                 
                 Text(
-                    "CONFIG_USB_CONFIGFS_F_UAC2=y",
+                    configOption,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

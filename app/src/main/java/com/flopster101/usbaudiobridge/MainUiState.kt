@@ -15,6 +15,7 @@ data class MainUiState(
     val periodSizeOption: Int = 0, // 0 = Auto
     val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL, 2 = AudioTrack
     val sampleRateOption: Int = 48000,
+    val uacVersionOption: Int = 2, // 1 = UAC1, 2 = UAC2
     val keepAdbOption: Boolean = false,
     val autoRestartOnOutputChange: Boolean = false,
     val activeDirectionsOption: Int = 1, // 1=Speaker, 2=Mic, 3=Both
@@ -22,7 +23,7 @@ data class MainUiState(
     val notificationEnabled: Boolean = true,
     val showKernelNotice: Boolean = false,
     val showOldKernelNotice: Boolean = false,
-    val showNoUac2Error: Boolean = false,
+    val showNoUacSupportError: Boolean = false,
     val showGadgetSetupError: Boolean = false,
     val showKeepAdbError: Boolean = false,
     val lastGadgetFailureWasKeepAdb: Boolean = false,

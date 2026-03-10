@@ -18,6 +18,8 @@ data class GadgetStatus(
 
 object UsbGadgetManager {
     private const val TAG = "UsbGadgetManager"
+    private const val UAC_VERSION_1 = 1
+    private const val UAC_VERSION_2 = 2
     
     private const val GADGET_ROOT = "/config/usb_gadget/g1"
     private const val CH_MASK = 3
@@ -32,6 +34,18 @@ object UsbGadgetManager {
     
     // Mutex to prevent concurrent gadget operations
     private val gadgetMutex = Mutex()
+
+    private fun normalizeUacVersion(uacVersion: Int): Int {
+        return if (uacVersion == UAC_VERSION_1) UAC_VERSION_1 else UAC_VERSION_2
+    }
+
+    private fun getUacFunctionName(uacVersion: Int): String {
+        return if (uacVersion == UAC_VERSION_1) "uac1.0" else "uac2.0"
+    }
+
+    private fun getUacDisplayName(uacVersion: Int): String {
+        return if (uacVersion == UAC_VERSION_1) "UAC1" else "UAC2"
+    }
 
     /**
      * Check if root access is granted.
@@ -302,10 +316,11 @@ object UsbGadgetManager {
         logCallback: (String) -> Unit, 
         sampleRate: Int = 48000, 
         settingsRepo: SettingsRepository? = null, 
-        keepAdb: Boolean = false
+        keepAdb: Boolean = false,
+        uacVersion: Int = UAC_VERSION_2
     ): Boolean = withContext(Dispatchers.IO) {
         gadgetMutex.withLock {
-            enableGadgetInternal(logCallback, sampleRate, settingsRepo, keepAdb)
+            enableGadgetInternal(logCallback, sampleRate, settingsRepo, keepAdb, uacVersion)
         }
     }
     
@@ -313,9 +328,21 @@ object UsbGadgetManager {
         logCallback: (String) -> Unit, 
         sampleRate: Int = 48000, 
         settingsRepo: SettingsRepository? = null, 
-        keepAdb: Boolean = false
+        keepAdb: Boolean = false,
+        uacVersion: Int = UAC_VERSION_2
     ): Boolean {
-        logCallback("[Gadget] Configuring UAC2 gadget ($sampleRate Hz)...")
+        val normalizedUacVersion = normalizeUacVersion(uacVersion)
+        val uacFunctionName = getUacFunctionName(normalizedUacVersion)
+        val uacDisplayName = getUacDisplayName(normalizedUacVersion)
+        val uacFunctionPath = "$GADGET_ROOT/functions/$uacFunctionName"
+        val uacKernelConfigOption = if (normalizedUacVersion == UAC_VERSION_1) {
+            "CONFIG_USB_CONFIGFS_F_UAC1"
+        } else {
+            "CONFIG_USB_CONFIGFS_F_UAC2"
+        }
+        val sysUsbState = if (normalizedUacVersion == UAC_VERSION_1) "uac1" else "uac2"
+
+        logCallback("[Gadget] Configuring $uacDisplayName gadget ($sampleRate Hz)...")
         
         // Backup original USB config (sys/vendor) if not already stored
         if (settingsRepo != null) {
@@ -450,7 +477,8 @@ object UsbGadgetManager {
             "rm -f $GADGET_ROOT/configs/b.1/f* || true",
             "rm -f $GADGET_ROOT/os_desc/b.1 || true",
             
-            // Remove old UAC2 function if it exists
+            // Remove old UAC functions if they exist
+            "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true",
             
             // Set Device Identity
@@ -464,15 +492,15 @@ object UsbGadgetManager {
             "echo \"0x1\" > $GADGET_ROOT/os_desc/b_vendor_code",
             "echo \"MSFT100\" > $GADGET_ROOT/os_desc/qw_sign",
             
-            // Create and configure UAC2 function
-            "mkdir -p $GADGET_ROOT/functions/uac2.0",
-            "echo $sampleRate > $GADGET_ROOT/functions/uac2.0/p_srate",
-            "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/p_chmask",
-            "echo $SAMPLE_SIZE > $GADGET_ROOT/functions/uac2.0/p_ssize",
-            "echo $sampleRate > $GADGET_ROOT/functions/uac2.0/c_srate",
-            "echo $CH_MASK > $GADGET_ROOT/functions/uac2.0/c_chmask",
-            "echo $SAMPLE_SIZE > $GADGET_ROOT/functions/uac2.0/c_ssize",
-            "echo 2 > $GADGET_ROOT/functions/uac2.0/req_number 2>/dev/null || true",
+            // Create and configure selected UAC function
+            "mkdir -p $uacFunctionPath",
+            "echo $sampleRate > $uacFunctionPath/p_srate",
+            "echo $CH_MASK > $uacFunctionPath/p_chmask",
+            "echo $SAMPLE_SIZE > $uacFunctionPath/p_ssize",
+            "echo $sampleRate > $uacFunctionPath/c_srate",
+            "echo $CH_MASK > $uacFunctionPath/c_chmask",
+            "echo $SAMPLE_SIZE > $uacFunctionPath/c_ssize",
+            "echo 2 > $uacFunctionPath/req_number 2>/dev/null || true",
             
             // Set device strings
             "mkdir -p $GADGET_ROOT/strings/0x409",
@@ -488,17 +516,17 @@ object UsbGadgetManager {
         // Link functions
         if (adbAvailable) {
             configCommands.add("echo \"USB Audio + ADB\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration")
-            configCommands.add("ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1")
+            configCommands.add("ln -s $uacFunctionPath $GADGET_ROOT/configs/b.1/f1")
             configCommands.add("ln -s $GADGET_ROOT/functions/ffs.adb $GADGET_ROOT/configs/b.1/f2")
         } else {
             configCommands.add("echo \"USB Audio\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration")
-            configCommands.add("ln -s $GADGET_ROOT/functions/uac2.0 $GADGET_ROOT/configs/b.1/f1")
+            configCommands.add("ln -s $uacFunctionPath $GADGET_ROOT/configs/b.1/f1")
         }
         
         if (!runRootCommands(configCommands, logCallback) ||
-            !runRootCommand("test -f $GADGET_ROOT/functions/uac2.0/p_srate", {})) {
-             logCallback("[Gadget] Error: Your kernel does not support UAC2 (USB Audio Class 2).")
-             logCallback("[Gadget] This feature requires CONFIG_USB_CONFIGFS_F_UAC2 enabled in kernel.")
+            !runRootCommand("test -d $uacFunctionPath", {})) {
+             logCallback("[Gadget] Error: Your kernel does not support $uacDisplayName.")
+             logCallback("[Gadget] This feature requires $uacKernelConfigOption enabled in kernel.")
              return false
         }
         
@@ -506,12 +534,12 @@ object UsbGadgetManager {
         
         // Step 5: Bind the gadget
         if (bindGadgetWithRetry(logCallback)) {
-            runRootCommands(listOf("setprop sys.usb.state uac2")) {}
+            runRootCommands(listOf("setprop sys.usb.state $sysUsbState")) {}
             
             if (adbAvailable) {
-                logCallback("[Gadget] Composite gadget active: UAC2 + ADB")
+                logCallback("[Gadget] Composite gadget active: $uacDisplayName + ADB")
             } else {
-                logCallback("[Gadget] UAC2 gadget active")
+                logCallback("[Gadget] $uacDisplayName gadget active")
                 if (keepAdb && adbWasActive && !adbAvailable) {
                     logCallback("[Gadget] Note: ADB will reconnect when you disable the gadget.")
                 }
@@ -622,6 +650,7 @@ object UsbGadgetManager {
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rm -f $GADGET_ROOT/configs/b.1/f2 || true",
             "rm -f $GADGET_ROOT/os_desc/b.1 || true",
+            "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true"
         ), logCallback)
         
@@ -767,12 +796,12 @@ object UsbGadgetManager {
     }
 
     suspend fun findAndPrepareCard(logCallback: (String) -> Unit): Int = withContext(Dispatchers.IO) {
-        logCallback("[Gadget] Scanning for UAC2 audio card...")
+        logCallback("[Gadget] Scanning for USB audio gadget card...")
         
         var cardIndex = -1
         
         try {
-            val checkCmd = "cat /proc/asound/cards | grep -i 'UAC2Gadget' | awk '{print \$1}'"
+            val checkCmd = "cat /proc/asound/cards | grep -iE 'UAC[12][[:space:]_-]*Gadget|UAC[12]Gadget' | head -n1 | awk '{print \$1}'"
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", checkCmd))
             val output = process.inputStream.bufferedReader().readText().trim()
             
@@ -792,13 +821,13 @@ object UsbGadgetManager {
                      runRootCommand("chmod 666 /dev/snd/pcmC${cardIndex}D0p", {})
                      Thread.sleep(100)
                  }
-                 logCallback("[Gadget] UAC2 driver found at card $cardIndex")
+                 logCallback("[Gadget] USB audio gadget driver found at card $cardIndex")
                  return@withContext cardIndex
             } else {
                 logCallback("[Gadget] Card $cardIndex found, but pcmC${cardIndex}D0c is missing.")
             }
         } else {
-             logCallback("[Gadget] UAC2 card not found. Is USB connected?")
+             logCallback("[Gadget] USB audio gadget card not found. Is USB connected?")
         }
         
         return@withContext -1
@@ -810,7 +839,7 @@ object UsbGadgetManager {
 
     fun isGadgetActive(): Boolean {
         return try {
-            val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -q uac2 && udc=\$(cat $GADGET_ROOT/UDC 2>/dev/null) && [ -n \"\$udc\" ] && [ \"\$udc\" != \"none\" ]"
+            val cmd = "test -L $GADGET_ROOT/configs/b.1/f1 && readlink $GADGET_ROOT/configs/b.1/f1 | grep -Eq 'uac1|uac2' && udc=\$(cat $GADGET_ROOT/UDC 2>/dev/null) && [ -n \"\$udc\" ] && [ \"\$udc\" != \"none\" ]"
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
             p.waitFor() == 0
         } catch (e: Exception) { false }
@@ -845,6 +874,7 @@ object UsbGadgetManager {
                     .map { 
                         // Clean up function names (e.g., "uac2.0" -> "uac2", "ffs.adb" -> "adb")
                         when {
+                            it.startsWith("uac1") -> "uac1"
                             it.startsWith("uac2") -> "uac2"
                             it.startsWith("ffs.") -> it.removePrefix("ffs.")
                             else -> it
