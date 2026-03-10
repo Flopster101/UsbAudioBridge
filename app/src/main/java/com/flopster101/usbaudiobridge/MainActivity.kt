@@ -162,7 +162,12 @@ class MainActivity : ComponentActivity() {
             val success = intent.getBooleanExtra("success", false)
             var showNotice = false
             
-            if (success && isOldKernelAffected() && settingsRepo.shouldShowOldKernelNotice()) {
+            if (
+                success &&
+                uiState.uacVersionOption == 2 &&
+                isOldKernelAffected() &&
+                settingsRepo.shouldShowOldKernelNotice()
+            ) {
                 showNotice = true
             }
             
@@ -502,7 +507,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onUacVersionChange = {
-                                uiState = uiState.copy(uacVersionOption = it)
+                                uiState = uiState.copy(
+                                    uacVersionOption = it,
+                                    showOldKernelNotice = if (it == 1) false else uiState.showOldKernelNotice
+                                )
                                 settingsRepo.saveUacVersion(it)
                             },
                             onKeepAdbChange = {
