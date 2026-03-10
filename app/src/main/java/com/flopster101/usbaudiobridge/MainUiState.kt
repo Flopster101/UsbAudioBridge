@@ -32,6 +32,8 @@ data class MainUiState(
     val screensaverEnabled: Boolean = false,
     val screensaverTimeout: Int = 15,
     val screensaverRepositionInterval: Int = 5,
+    val screensaverDvdMode: Boolean = false,
+    val screensaverDvdSpeed: Int = 140,
     val screensaverFullscreen: Boolean = true,
     val screensaverActive: Boolean = false,
     val speakerMuted: Boolean = false,

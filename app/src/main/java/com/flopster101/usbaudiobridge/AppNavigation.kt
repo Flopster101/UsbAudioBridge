@@ -45,6 +45,8 @@ fun AppNavigation(
     onScreensaverEnabledChange: (Boolean) -> Unit,
     onScreensaverTimeoutChange: (Int) -> Unit,
     onScreensaverRepositionIntervalChange: (Int) -> Unit,
+    onScreensaverDvdModeChange: (Boolean) -> Unit,
+    onScreensaverDvdSpeedChange: (Int) -> Unit,
     onScreensaverFullscreenChange: (Boolean) -> Unit,
     onScreensaverActivate: () -> Unit,
     onScreensaverDeactivate: () -> Unit,
@@ -54,6 +56,7 @@ fun AppNavigation(
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
+    val screensaverFadeDurationMs = 250
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -130,6 +133,8 @@ fun AppNavigation(
                     onScreensaverEnabledChange = onScreensaverEnabledChange,
                     onScreensaverTimeoutChange = onScreensaverTimeoutChange,
                     onScreensaverRepositionIntervalChange = onScreensaverRepositionIntervalChange,
+                    onScreensaverDvdModeChange = onScreensaverDvdModeChange,
+                    onScreensaverDvdSpeedChange = onScreensaverDvdSpeedChange,
                     onScreensaverFullscreenChange = onScreensaverFullscreenChange,
                     onMuteOnMediaButtonChange = onMuteOnMediaButtonChange,
                     onResetSettings = onResetSettings
@@ -161,11 +166,12 @@ fun AppNavigation(
     // Screensaver overlay with fade transitions
     AnimatedVisibility(
         visible = state.screensaverActive,
-        enter = fadeIn(animationSpec = tween(durationMillis = 250)),
-        exit = fadeOut(animationSpec = tween(durationMillis = 250))
+        enter = fadeIn(animationSpec = tween(durationMillis = screensaverFadeDurationMs)),
+        exit = fadeOut(animationSpec = tween(durationMillis = screensaverFadeDurationMs))
     ) {
         ScreensaverOverlay(
             state = state,
+            fadeInDurationMs = screensaverFadeDurationMs,
             onDismiss = {
                 onScreensaverDeactivate()
                 lastInteractionTime = System.currentTimeMillis()

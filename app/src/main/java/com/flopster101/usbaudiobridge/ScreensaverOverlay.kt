@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,11 +26,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun ScreensaverOverlay(
     state: MainUiState,
+    fadeInDurationMs: Int = 250,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
 
     var contentSize by remember { mutableStateOf<IntSize>(IntSize.Zero) }
+    val dvdModeEnabled = state.screensaverDvdMode
+    val contentPadding = if (dvdModeEnabled) 0.dp else 24.dp
+    val contentSpacing = if (dvdModeEnabled) 0.dp else 2.dp
 
     var isPositioned by remember(state.screensaverActive) { mutableStateOf(false) }
 
@@ -43,6 +48,7 @@ fun ScreensaverOverlay(
         val centerY = maxOf(0f, (screenHeight - approxContentHeight) / 2f)
         mutableStateOf(Pair(centerX, centerY))
     }
+    var velocity by remember(state.screensaverActive) { mutableStateOf(Pair(0.78f, 0.62f)) }
 
     LaunchedEffect(contentSize) {
         if (contentSize != IntSize.Zero) {
@@ -57,8 +63,9 @@ fun ScreensaverOverlay(
         }
     }
 
-    // Random repositioning
-    LaunchedEffect(state.screensaverRepositionInterval) {
+    // Random repositioning (default mode)
+    LaunchedEffect(state.screensaverRepositionInterval, state.screensaverDvdMode, contentSize) {
+        if (state.screensaverDvdMode) return@LaunchedEffect
         while (true) {
             delay(state.screensaverRepositionInterval * 1000L)
             if (contentSize != IntSize.Zero) {
@@ -76,6 +83,51 @@ fun ScreensaverOverlay(
         }
     }
 
+    // DVD mode: glide and bounce continuously, starting after overlay fade-in
+    LaunchedEffect(state.screensaverDvdMode, state.screensaverDvdSpeed, contentSize, isPositioned, fadeInDurationMs) {
+        if (!state.screensaverDvdMode) return@LaunchedEffect
+        if (!isPositioned || contentSize == IntSize.Zero) return@LaunchedEffect
+
+        delay(fadeInDurationMs.toLong())
+
+        val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
+        val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+        var lastFrameNanos = withFrameNanos { it }
+
+        while (true) {
+            val nowNanos = withFrameNanos { it }
+            val dtSeconds = ((nowNanos - lastFrameNanos).coerceAtLeast(0L) / 1_000_000_000f).coerceAtMost(0.05f)
+            lastFrameNanos = nowNanos
+
+            val maxX = maxOf(0f, screenWidth - contentSize.width.toFloat())
+            val maxY = maxOf(0f, screenHeight - contentSize.height.toFloat())
+
+            var vx = velocity.first
+            var vy = velocity.second
+            var newX = position.first + vx * state.screensaverDvdSpeed * dtSeconds
+            var newY = position.second + vy * state.screensaverDvdSpeed * dtSeconds
+
+            if (newX <= 0f) {
+                newX = 0f
+                vx = kotlin.math.abs(vx)
+            } else if (newX >= maxX) {
+                newX = maxX
+                vx = -kotlin.math.abs(vx)
+            }
+
+            if (newY <= 0f) {
+                newY = 0f
+                vy = kotlin.math.abs(vy)
+            } else if (newY >= maxY) {
+                newY = maxY
+                vy = -kotlin.math.abs(vy)
+            }
+
+            velocity = Pair(vx, vy)
+            position = Pair(newX, newY)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -87,9 +139,9 @@ fun ScreensaverOverlay(
             modifier = Modifier
                 .offset { if (isPositioned) IntOffset(position.first.toInt(), position.second.toInt()) else IntOffset(-9999, -9999) }
                 .onSizeChanged { contentSize = it }
-                .padding(24.dp),
+                .padding(contentPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(contentSpacing)
         ) {
             // Logo
             Surface(

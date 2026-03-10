@@ -72,6 +72,12 @@ class SettingsRepository(context: Context) {
     fun saveScreensaverRepositionInterval(seconds: Int) = prefs.edit().putInt("screensaver_reposition_interval", seconds).apply()
     fun getScreensaverRepositionInterval(): Int = prefs.getInt("screensaver_reposition_interval", 5) // Default 5 seconds
 
+    fun saveScreensaverDvdMode(enabled: Boolean) = prefs.edit().putBoolean("screensaver_dvd_mode", enabled).apply()
+    fun getScreensaverDvdMode(): Boolean = prefs.getBoolean("screensaver_dvd_mode", false) // Default disabled
+
+    fun saveScreensaverDvdSpeed(speedPxPerSec: Int) = prefs.edit().putInt("screensaver_dvd_speed", speedPxPerSec).apply()
+    fun getScreensaverDvdSpeed(): Int = prefs.getInt("screensaver_dvd_speed", 140) // Default medium speed
+
     fun saveScreensaverFullscreen(enabled: Boolean) = prefs.edit().putBoolean("screensaver_fullscreen", enabled).apply()
     fun getScreensaverFullscreen(): Boolean = prefs.getBoolean("screensaver_fullscreen", true) // Default true
 

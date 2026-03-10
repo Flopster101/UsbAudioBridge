@@ -37,6 +37,8 @@ fun SettingsScreen(
     onScreensaverEnabledChange: (Boolean) -> Unit,
     onScreensaverTimeoutChange: (Int) -> Unit,
     onScreensaverRepositionIntervalChange: (Int) -> Unit,
+    onScreensaverDvdModeChange: (Boolean) -> Unit,
+    onScreensaverDvdSpeedChange: (Int) -> Unit,
     onScreensaverFullscreenChange: (Boolean) -> Unit,
     onMuteOnMediaButtonChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
@@ -753,20 +755,74 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Reposition: ${state.screensaverRepositionInterval}s",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "DVD bounce mode",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Glides diagonally and bounces off screen edges.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(16.dp))
+                            Switch(
+                                checked = state.screensaverDvdMode,
+                                onCheckedChange = onScreensaverDvdModeChange
                             )
+                        }
 
-                            Slider(
-                                value = ((state.screensaverRepositionInterval - 5) / 5).toFloat(),
-                                onValueChange = { val snapped = it.roundToInt(); val interval = 5 + snapped * 5; onScreensaverRepositionIntervalChange(interval) },
-                                valueRange = 0f..5f,
-                                steps = 5,
-                                modifier = Modifier.weight(2f)
-                            )
+                        if (state.screensaverDvdMode) {
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "DVD speed: ${state.screensaverDvdSpeed}px/s",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Slider(
+                                    value = state.screensaverDvdSpeed.toFloat(),
+                                    onValueChange = {
+                                        val snapped = (it.roundToInt() / 10) * 10
+                                        onScreensaverDvdSpeedChange(snapped.coerceIn(40, 320))
+                                    },
+                                    valueRange = 40f..320f,
+                                    steps = 27,
+                                    modifier = Modifier.weight(2f)
+                                )
+                            }
+                        }
+
+                        if (!state.screensaverDvdMode) {
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Reposition: ${state.screensaverRepositionInterval}s",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Slider(
+                                    value = ((state.screensaverRepositionInterval - 5) / 5).toFloat(),
+                                    onValueChange = { val snapped = it.roundToInt(); val interval = 5 + snapped * 5; onScreensaverRepositionIntervalChange(interval) },
+                                    valueRange = 0f..5f,
+                                    steps = 5,
+                                    modifier = Modifier.weight(2f)
+                                )
+                            }
                         }
 
                         Spacer(Modifier.height(12.dp))

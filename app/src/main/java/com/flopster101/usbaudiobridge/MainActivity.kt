@@ -268,6 +268,8 @@ class MainActivity : ComponentActivity() {
             screensaverEnabled = settingsRepo.getScreensaverEnabled(),
             screensaverTimeout = settingsRepo.getScreensaverTimeout(),
             screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
+            screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
+            screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
             screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
             muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
         )
@@ -560,6 +562,14 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(screensaverRepositionInterval = it)
                                 settingsRepo.saveScreensaverRepositionInterval(it)
                             },
+                            onScreensaverDvdModeChange = {
+                                uiState = uiState.copy(screensaverDvdMode = it)
+                                settingsRepo.saveScreensaverDvdMode(it)
+                            },
+                            onScreensaverDvdSpeedChange = {
+                                uiState = uiState.copy(screensaverDvdSpeed = it)
+                                settingsRepo.saveScreensaverDvdSpeed(it)
+                            },
                             onScreensaverFullscreenChange = {
                                 uiState = uiState.copy(screensaverFullscreen = it)
                                 settingsRepo.saveScreensaverFullscreen(it)
@@ -620,6 +630,8 @@ class MainActivity : ComponentActivity() {
                                     screensaverEnabled = settingsRepo.getScreensaverEnabled(),
                                     screensaverTimeout = settingsRepo.getScreensaverTimeout(),
                                     screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
+                                    screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
+                                    screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
                                     screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
                                     muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
                                 )
