@@ -39,10 +39,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var windowInsetsController: WindowInsetsController
     private var audioService: AudioService? = null
     private lateinit var settingsRepo: SettingsRepository
-    
+
     // Mutable State Holder
     private var uiState by mutableStateOf(MainUiState())
-    
+
     // Root status
     private var isRootGranted by mutableStateOf<Boolean?>(null)
 
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra(AudioService.EXTRA_MSG) ?: return
             appendLog(msg)
-            
+
             if (msg.contains("Your kernel does not support UAC")) {
                 uiState = uiState.copy(showNoUacSupportError = true)
             }
@@ -96,11 +96,11 @@ class MainActivity : ComponentActivity() {
     private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val isRunning = intent?.getBooleanExtra(AudioService.EXTRA_IS_RUNNING, false) ?: false
-            val label = intent?.getStringExtra(AudioService.EXTRA_STATE_LABEL) 
+            val label = intent?.getStringExtra(AudioService.EXTRA_STATE_LABEL)
             val color = intent?.getLongExtra(AudioService.EXTRA_STATE_COLOR, 0)
             val directions = intent?.getIntExtra(AudioService.EXTRA_ACTIVE_DIRECTIONS, 0) ?: 0
             val isMuted = intent?.getBooleanExtra(AudioService.EXTRA_IS_MUTED, false) ?: false
-            
+
             uiState = uiState.copy(
                 isServiceRunning = isRunning,
                 runningDirections = directions,
@@ -137,16 +137,16 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
-    
+
     private fun isOldKernelAffected(): Boolean {
         try {
             val version = System.getProperty("os.version") ?: return false
-            
+
             val parts = version.split(".")
             if (parts.size >= 2) {
                 val major = parts[0].toIntOrNull() ?: return false
                 val minor = parts[1].split("-")[0].filter { it.isDigit() }.toIntOrNull() ?: return false
-                
+
                 if (major < 5) return true
                 if (major == 5 && minor < 4) return true
             }
@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
             if (intent == null) return
             val success = intent.getBooleanExtra("success", false)
             var showNotice = false
-            
+
             if (
                 success &&
                 uiState.uacVersionOption == 2 &&
@@ -170,9 +170,9 @@ class MainActivity : ComponentActivity() {
             ) {
                 showNotice = true
             }
-            
+
             uiState = uiState.copy(
-                isGadgetEnabled = success, 
+                isGadgetEnabled = success,
                 isGadgetPending = false,
                 showOldKernelNotice = showNotice,
                 showGadgetSetupError = !success && uiState.lastGadgetActionWasEnable && !uiState.lastGadgetFailureWasKeepAdb,
@@ -182,7 +182,7 @@ class MainActivity : ComponentActivity() {
             audioService?.setGadgetEnabled(success)
         }
     }
-    
+
     private val gadgetStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null) return
@@ -287,14 +287,14 @@ class MainActivity : ComponentActivity() {
             }
             val rate = loadedState.sampleRateOption
             val targetFrames = rate * ms / 1000f
-            
+
             // If mismatch, update state AND save it (so next time it's correct)
             if (kotlin.math.abs(loadedState.bufferSize - targetFrames) > 1f) {
                  loadedState = loadedState.copy(bufferSize = targetFrames)
                  settingsRepo.saveBufferSize(targetFrames)
             }
         }
-        
+
         uiState = loadedState
 
         // Apply initial keep screen on
@@ -341,7 +341,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 checkRoot()
             }
-            
+
             LaunchedEffect(isRootGranted) {
                 if (isRootGranted == true) {
                     startServiceAndBind()
@@ -350,7 +350,7 @@ class MainActivity : ComponentActivity() {
 
             // Basic Material Theme wrapper
             MaterialTheme(
-                colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) 
+                colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
                     dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
             ) {
                 when (isRootGranted) {
@@ -377,7 +377,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        
+
                         // Old kernel Windows notice
                         if (uiState.showOldKernelNotice) {
                             OldKernelNoticeDialog(
@@ -389,7 +389,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        
+
                         // Missing selected UAC support error
                         if (uiState.showNoUacSupportError) {
                             NoUacSupportDialog(
@@ -411,7 +411,7 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { uiState = uiState.copy(showKeepAdbError = false) }
                             )
                         }
-                        
+
                         AppNavigation(
                             state = uiState,
                             onToggleGadget = { enable ->
@@ -450,7 +450,7 @@ class MainActivity : ComponentActivity() {
                                      }
                                 }
                             },
-                            onBufferSizeChange = { 
+                            onBufferSizeChange = {
                                 uiState = uiState.copy(bufferSize = it)
                                 settingsRepo.saveBufferSize(it)
                             },
@@ -639,7 +639,7 @@ class MainActivity : ComponentActivity() {
                  runOnUiThread {
                      uiState = uiState.copy(isGadgetEnabled = gadgetActive)
                      service.setGadgetEnabled(gadgetActive)
-                     
+
                      if (service.isBridgeRunning) {
                          uiState = uiState.copy(isServiceRunning = true)
                          appendLog("[App] Restored connection to active stream")
@@ -657,7 +657,7 @@ class MainActivity : ComponentActivity() {
     private fun appendLog(msg: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val line = "[$time] $msg\n"
-        
+
         var currentText = uiState.logText + line
         // Circular Buffer Logic
         if (currentText.length > 100000) {
@@ -682,9 +682,9 @@ class MainActivity : ComponentActivity() {
 
     private fun startBridgeWithState() {
         audioService?.startBridge(
-             uiState.bufferSize.toInt(), 
-             uiState.periodSizeOption, 
-             uiState.engineTypeOption, 
+             uiState.bufferSize.toInt(),
+             uiState.periodSizeOption,
+             uiState.engineTypeOption,
              uiState.sampleRateOption,
              uiState.activeDirectionsOption,
              uiState.micSourceOption

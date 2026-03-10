@@ -7,7 +7,7 @@ data class MainUiState(
     val isCapturePending: Boolean = false, // Capture operation in progress?
     val runningDirections: Int = 0,        // Active directions reported by service
     val isAppBound: Boolean = false,       // Service bound?
-    
+
     // Config
     val bufferSize: Float = 4800f,
     val bufferMode: Int = 0, // 0 = Simple (Presets), 1 = Advanced (Slider)

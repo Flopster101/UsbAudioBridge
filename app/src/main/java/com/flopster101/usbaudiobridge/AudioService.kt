@@ -53,11 +53,11 @@ class AudioService : Service() {
         const val STATE_STREAMING = 3
         const val STATE_IDLING = 4
         const val STATE_ERROR = 5
-        
+
         const val ENGINE_AAUDIO = 0
         const val ENGINE_OPENSL = 1
         const val ENGINE_AUDIOTRACK = 2
-        
+
         init {
             System.loadLibrary("usbaudio")
         }
@@ -88,7 +88,7 @@ class AudioService : Service() {
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(android.media.AudioTrack.MODE_STREAM)
                 .build()
-            
+
             return 1 // Success
         } catch (e: Exception) {
             Log.e(TAG, "AudioTrack init failed", e)
@@ -178,15 +178,15 @@ class AudioService : Service() {
         broadcastLog("[App] Fatal: $msg")
         serviceScope.launch {
             Log.e(TAG, "Stopping bridge due to native error: $msg")
-            
+
             // Clean up native side immediately
-            stopAudioBridge() 
-            
+            stopAudioBridge()
+
             // Update State to ERROR so UI shows it persists
             isBridgeRunning = false
             lastNativeState = STATE_ERROR
             lastErrorMsg = msg
-            
+
             updateNotification("Monitoring Error")
             updateUiState()
         }
@@ -249,25 +249,25 @@ class AudioService : Service() {
         updateNotification(fullText, isRunning)
         updateUiState()
     }
-    
+
     // Called from C++ JNI when audio output is disconnected (e.g., headphones unplugged)
     fun onOutputDisconnect() {
         broadcastLog("[App] Audio output disconnected (native callback)")
         handleOutputDisconnect()
     }
-    
+
     // Handle audio output disconnect - either restart or stop based on settings
     private fun handleOutputDisconnect() {
         if (!isBridgeRunning) return
-        
+
         val autoRestart = settingsRepo.getAutoRestartOnOutputChange()
-        
+
         // Broadcast to UI that output disconnected
         val intent = Intent(ACTION_OUTPUT_DISCONNECT)
         intent.putExtra("autoRestart", autoRestart)
         intent.setPackage(packageName)
         sendBroadcast(intent)
-        
+
         if (autoRestart) {
             // Auto-restart: stop and immediately restart with same parameters
             broadcastLog("[App] Output changed - restarting stream...")
@@ -275,10 +275,10 @@ class AudioService : Service() {
                 // Stop current stream
                 stopAudioBridge()
                 isBridgeRunning = false
-                
+
                 // Brief delay to let audio system settle
                 delay(300)
-                
+
                 // Restart with saved parameters
                 if (lastBufferSize > 0) {
                     startBridge(lastBufferSize, lastPeriodSize, lastEngineType, lastSampleRate, lastActiveDirections, lastMicSource)
@@ -295,11 +295,11 @@ class AudioService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     var isBridgeRunning = false
         private set
-    
+
     private lateinit var settingsRepo: SettingsRepository
     private var lastNativeState = STATE_STOPPED
     private var lastErrorMsg = ""
-    
+
     // Store bridge parameters for restart capability
     private var lastBufferSize = 0
     private var lastPeriodSize = 0
@@ -314,7 +314,7 @@ class AudioService : Service() {
             updateUiState()
         }
     }
-    
+
     // Receiver for audio output changes (headphones unplugged, etc.)
     private val audioNoisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -334,16 +334,16 @@ class AudioService : Service() {
         createNotificationChannel()
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "UsbAudioMonitor::BridgeLock")
-        
+
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         }
         registerReceiver(usbReceiver, filter)
-        
+
         // Register for audio becoming noisy (headphones unplugged)
         registerReceiver(audioNoisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
-        
+
         // Initialize MediaSession
         mediaSession = android.media.session.MediaSession(this, "UsbAudioBridgeSession").apply {
             setCallback(object : android.media.session.MediaSession.Callback() {
@@ -364,8 +364,8 @@ class AudioService : Service() {
     private fun updateMediaSessionState() {
         val state = if (isSpeakerMuted) android.media.session.PlaybackState.STATE_PAUSED else android.media.session.PlaybackState.STATE_PLAYING
         val playbackState = android.media.session.PlaybackState.Builder()
-            .setActions(android.media.session.PlaybackState.ACTION_PLAY or 
-                        android.media.session.PlaybackState.ACTION_PAUSE or 
+            .setActions(android.media.session.PlaybackState.ACTION_PLAY or
+                        android.media.session.PlaybackState.ACTION_PAUSE or
                         android.media.session.PlaybackState.ACTION_PLAY_PAUSE)
             .setState(state, android.media.session.PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
             .build()
@@ -381,7 +381,7 @@ class AudioService : Service() {
             toggleCapture()
             return START_NOT_STICKY
         }
-        
+
         // Start foreground if needed
         if (shouldBeForeground()) {
             val notification = createNotification("Inactive", false)
@@ -419,7 +419,7 @@ class AudioService : Service() {
     private fun checkUsbConnected(): Boolean {
         val intent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val plugged = intent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1
-        return plugged == android.os.BatteryManager.BATTERY_PLUGGED_USB || 
+        return plugged == android.os.BatteryManager.BATTERY_PLUGGED_USB ||
                plugged == android.os.BatteryManager.BATTERY_PLUGGED_AC
     }
 
@@ -442,7 +442,7 @@ class AudioService : Service() {
         }
 
         val isUsb = checkUsbConnected()
-        
+
         // Logic table
         val (label, color) = when (lastNativeState) {
             STATE_CONNECTING -> {
@@ -489,7 +489,7 @@ class AudioService : Service() {
                   broadcastGadgetResult(true)
                   return@launch
              }
-             
+
              val uacLabel = if (uacVersion == 1) "UAC1" else "UAC2"
              broadcastLog("[App] Setting up USB gadget config ($uacLabel, $sampleRate Hz)...")
              val success = UsbGadgetManager.enableGadget({ msg -> broadcastLog(msg) }, sampleRate, settingsRepo, keepAdb, uacVersion)
@@ -503,7 +503,7 @@ class AudioService : Service() {
              broadcastGadgetResult(success)
         }
     }
-    
+
     private fun broadcastGadgetResult(success: Boolean) {
         val intent = Intent(ACTION_GADGET_RESULT)
         intent.putExtra("success", success)
@@ -512,21 +512,21 @@ class AudioService : Service() {
         // Also broadcast updated gadget status
         broadcastGadgetStatus()
     }
-    
+
     fun broadcastGadgetStatus() {
         serviceScope.launch(Dispatchers.IO) {
             // Poll for UDC to be populated (HAL may take time to rebind after disable)
             var status = UsbGadgetManager.getGadgetStatus()
             var attempts = 0
             val maxAttempts = 10
-            
+
             // If UDC is empty, poll until it's populated or timeout
             while (!status.isBound && attempts < maxAttempts) {
                 delay(200)
                 status = UsbGadgetManager.getGadgetStatus()
                 attempts++
             }
-            
+
             val intent = Intent(ACTION_GADGET_STATUS).apply {
                 putExtra(EXTRA_UDC_CONTROLLER, status.udcController)
                 putExtra(EXTRA_ACTIVE_FUNCTIONS, status.activeFunctions.joinToString(", ").ifEmpty { "--" })
@@ -539,7 +539,7 @@ class AudioService : Service() {
     fun stopAudioOnly() {
         // Allow stopping even if bridge not running, to clear Error state
         if (!isBridgeRunning && lastNativeState != STATE_ERROR) return
-        
+
         broadcastLog("[App] Stopping audio capture...")
         stopAudioBridge()
         isBridgeRunning = false
@@ -558,9 +558,9 @@ class AudioService : Service() {
 
     fun startBridge(bufferSize: Int, periodSize: Int = 0, engineType: Int = 0, sampleRate: Int = 48000, activeDirections: Int = 1, micSource: Int = 6) {
         if (isBridgeRunning) return
-        
+
         hasCaptureEverStarted = true
-        
+
         // Save parameters for potential auto-restart on output change
         lastBufferSize = bufferSize
         lastPeriodSize = periodSize
@@ -568,18 +568,18 @@ class AudioService : Service() {
         lastSampleRate = sampleRate
         lastActiveDirections = activeDirections
         lastMicSource = micSource
-        
+
         serviceScope.launch {
             broadcastLog("[App] Scanning for audio card...")
             val cardId = UsbGadgetManager.findAndPrepareCard { msg -> broadcastLog(msg) }
-            
+
             if (cardId < 0) {
                 broadcastLog("[App] Error: USB audio gadget card not found. Check cable/host.")
                 return@launch
             }
 
             broadcastLog("[App] Starting native bridge on card $cardId ($sampleRate Hz, Dir: $activeDirections, MicSrc: $micSource)...")
-            
+
             // Ensure we're foreground for active capture
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val notification = createNotification("Active", true)
@@ -587,17 +587,17 @@ class AudioService : Service() {
             } else {
                 startForeground(1, createNotification("Active", true))
             }
-            
+
             startAudioBridge(cardId, 0, bufferSize, periodSize, engineType, sampleRate, activeDirections, micSource)
-            
+
             isBridgeRunning = true
             lastNativeState = STATE_CONNECTING
             lastErrorMsg = ""
-            
+
             // Activate MediaSession
             mediaSession?.isActive = true
             updateMediaSessionState()
-            
+
             updateNotification("Active", true)
             updateUiState()
         }
@@ -605,7 +605,7 @@ class AudioService : Service() {
 
     fun stopBridge() {
         val wasRunning = isBridgeRunning
-        
+
         // Stop native bridge if running
         if (wasRunning) {
             broadcastLog("[App] Stopping audio bridge...")
@@ -613,12 +613,12 @@ class AudioService : Service() {
             isBridgeRunning = false
             lastNativeState = STATE_STOPPED
             lastErrorMsg = ""
-            
+
             // Deactivate MediaSession
             mediaSession?.isActive = false
-            
+
             updateNotification(getStatusText(), false)
-            
+
             // Update foreground state based on notification setting
             if (settingsRepo.getNotificationEnabled()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -630,11 +630,11 @@ class AudioService : Service() {
             } else {
                 stopForeground(STOP_FOREGROUND_REMOVE)
             }
-            
+
             updateUiState()
             broadcastLog("[App] Audio stopped.")
         }
-        
+
         serviceScope.launch {
              UsbGadgetManager.disableGadget({ msg -> broadcastLog(msg) }, settingsRepo)
              broadcastGadgetResult(false)  // Notify UI that gadget is now disabled
@@ -665,7 +665,7 @@ class AudioService : Service() {
             else -> ""
         }
     }
-    
+
     private fun broadcastLog(msg: String) {
         val intent = Intent(ACTION_LOG)
         intent.putExtra(EXTRA_MSG, msg)
@@ -693,7 +693,7 @@ class AudioService : Service() {
 
     private fun createNotification(text: String, isRunning: Boolean = false): Notification {
         val contentIntent = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Bridge status")
             .setContentText(text)
@@ -702,7 +702,7 @@ class AudioService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-        
+
         // Only add action if notifications are enabled
         if (settingsRepo.getNotificationEnabled()) {
             val toggleIntent = PendingIntent.getService(this, 0, Intent(this, AudioService::class.java).setAction("TOGGLE_CAPTURE"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -710,7 +710,7 @@ class AudioService : Service() {
             val actionTitle = if (isRunning) "Stop Capture" else "Start Capture"
             builder.addAction(actionIcon, actionTitle, toggleIntent)
         }
-        
+
         return builder.build()
     }
 
@@ -742,11 +742,11 @@ class AudioService : Service() {
         val statusText = getStatusText()
         val bridgeText = if (isBridgeRunning) " - ${getBridgeText(lastActiveDirections)}" else ""
         val fullText = if (isBridgeRunning) "Active ($statusText)$bridgeText" else statusText
-        
+
         if (shouldBeForeground()) {
             // Start or update foreground with notification
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val serviceType = if (isBridgeRunning) 
+                val serviceType = if (isBridgeRunning)
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 else ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 startForeground(1, createNotification(fullText, isBridgeRunning), serviceType)

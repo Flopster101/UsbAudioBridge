@@ -83,7 +83,7 @@ fun <T> SelectionDialog(
 @Composable
 fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
     var dontShowAgain by remember { mutableStateOf(false) }
-    
+
     AlertDialog(
         onDismissRequest = { onDismiss(dontShowAgain) },
         icon = {
@@ -102,9 +102,9 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
                     "This app requires USB Gadget audio support in your device's kernel (UAC2 recommended, UAC1 optional for compatibility).",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Spacer(Modifier.height(12.dp))
-                
+
                 Text(
                     "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y.",
                     style = MaterialTheme.typography.bodyMedium
@@ -116,9 +116,9 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
                     "UAC1 compatibility mode requires CONFIG_USB_CONFIGFS_F_UAC1=y.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Spacer(Modifier.height(12.dp))
-                
+
                 Text(
                     "UAC2 has been available in Linux since 3.18, but Android commonly enables it by default from GKI 2.0 (Android 12, kernel 5.10+).",
                     style = MaterialTheme.typography.bodySmall,
@@ -132,9 +132,9 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 Spacer(Modifier.height(16.dp))
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
@@ -193,7 +193,7 @@ fun AboutLibraryRow(name: String, description: String) {
 @Composable
 fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
     var dontShowAgain by remember { mutableStateOf(false) }
-    
+
     AlertDialog(
         onDismissRequest = { onDismiss(dontShowAgain) },
         icon = {
@@ -212,25 +212,25 @@ fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
                     "Your device kernel version is older than 5.4. Windows might detect this gadget as an 'Internal AUX port' and disable it by default.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Spacer(Modifier.height(12.dp))
-                
+
                 Text(
                     "If audio doesn't work, please open the Sound Control Panel in Windows, find the new device (it might be disabled), and enable it manually.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Spacer(Modifier.height(12.dp))
-                
+
                 Text(
                     "Note: If you are using 'FloppyKernel', this issue is already fixed and you can ignore this.",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                
+
                 Spacer(Modifier.height(16.dp))
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
@@ -280,9 +280,9 @@ fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
                     "Setup failed because your device's kernel does not support $uacLabel ($uacLongName).",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Spacer(Modifier.height(12.dp))
-                
+
                 Text(
                     if (uacVersion == 1) {
                         "UAC1 may exist on older kernels, but it is often disabled in stock/GKI builds. To enable it, the kernel must be rebuilt with:"
@@ -291,7 +291,7 @@ fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
                     },
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
+
                 Text(
                     configOption,
                     style = MaterialTheme.typography.bodyMedium,
@@ -299,7 +299,7 @@ fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
-                
+
                 Text(
                     if (uacVersion == 2) {
                         "You can also try UAC1 compatibility mode first."

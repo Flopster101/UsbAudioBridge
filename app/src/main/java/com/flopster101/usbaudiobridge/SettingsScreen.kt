@@ -56,10 +56,10 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    
+
                     // Title
                     Text(
-                        text = "Audio Buffer", 
+                        text = "Audio Buffer",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
                     )
@@ -71,14 +71,14 @@ fun SettingsScreen(
                         var showLatencyDialog by remember { mutableStateOf(false) }
                         val presets = (0..8).toList()
                         val labels = listOf(
-                            "Minimum (10ms)", 
-                            "Very Low (20ms)", 
-                            "Low (30ms)", 
-                            "Normal (40ms)", 
-                            "Balanced (50ms)", 
-                            "High (60ms)", 
-                            "Very High (80ms)", 
-                            "Stable (100ms)", 
+                            "Minimum (10ms)",
+                            "Very Low (20ms)",
+                            "Low (30ms)",
+                            "Normal (40ms)",
+                            "Balanced (50ms)",
+                            "High (60ms)",
+                            "Very High (80ms)",
+                            "Stable (100ms)",
                             "Maximum (200ms)"
                         )
 
@@ -109,7 +109,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        
+
                         if (showLatencyDialog) {
                             SelectionDialog(
                                 title = "Target Latency",
@@ -117,7 +117,7 @@ fun SettingsScreen(
                                 labels = labels,
                                 selectedOption = state.latencyPreset,
                                 onDismiss = { showLatencyDialog = false },
-                                onOptionSelected = { 
+                                onOptionSelected = {
                                     onLatencyPresetChange(it)
                                     showLatencyDialog = false
                                 }
@@ -130,7 +130,7 @@ fun SettingsScreen(
                             val rate = state.sampleRateOption.toFloat()
                             val minBuffer = rate * 0.01f // 10ms
                             val maxBuffer = rate * 0.5f  // 500ms
-                            
+
                             val ms = (state.bufferSize / (rate / 1000f)).toInt()
                             Text(
                                 text = "${state.bufferSize.toInt()} frames (~${ms}ms)",
@@ -161,9 +161,9 @@ fun SettingsScreen(
                             }
                          }
                     }
-                    
+
                     HorizontalDivider()
-                    
+
                     // Advanced Toggle Footer
                     Row(
                         modifier = Modifier
@@ -202,29 +202,29 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
-                    
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val isSpeaker = (state.activeDirectionsOption and 1) != 0
                         val isMic = (state.activeDirectionsOption and 2) != 0
-                        
+
                         FilterChip(
                             selected = isSpeaker,
-                            onClick = { 
+                            onClick = {
                                 val newMask = if (isSpeaker) state.activeDirectionsOption and 1.inv() else state.activeDirectionsOption or 1
-                                // Prevent disabling both? User said "enable/disable either as they please". 
-                                // But having NO devices makes bridge useless. Let's allow it but maybe warn? 
+                                // Prevent disabling both? User said "enable/disable either as they please".
+                                // But having NO devices makes bridge useless. Let's allow it but maybe warn?
                                 // Or simply allow it (will just idle).
                                 onActiveDirectionsChange(newMask)
                             },
                             label = { Text("Speaker (Output)") },
-                            leadingIcon = { 
-                                if (isSpeaker) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) 
+                            leadingIcon = {
+                                if (isSpeaker) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                             }
                         )
-                        
+
                         FilterChip(
                             selected = isMic,
-                            onClick = { 
+                            onClick = {
                                 val newMask = if (isMic) state.activeDirectionsOption and 2.inv() else state.activeDirectionsOption or 2
                                 onActiveDirectionsChange(newMask)
                             },
@@ -243,7 +243,7 @@ fun SettingsScreen(
             var showMicDialog by remember { mutableStateOf(false) }
             val options = listOf(6, 1, 5, 7, 9, 10)
             val labels = listOf("Auto (voice rec)", "Mic", "Camcorder", "Voice comm", "Unprocessed", "Performance")
-            
+
             ElevatedCard(
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().clickable { showMicDialog = true }
@@ -261,7 +261,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    
+
                     val index = options.indexOf(state.micSourceOption)
                     val label = if (index >= 0) labels[index] else "Unknown"
                     Text(
@@ -272,7 +272,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            
+
             if (showMicDialog) {
                 SelectionDialog(
                     title = "Microphone source",
@@ -280,7 +280,7 @@ fun SettingsScreen(
                     labels = labels,
                     selectedOption = state.micSourceOption,
                     onDismiss = { showMicDialog = false },
-                    onOptionSelected = { 
+                    onOptionSelected = {
                         onMicSourceChange(it)
                         showMicDialog = false
                     }
@@ -311,7 +311,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    
+
                     Text(
                         text = "${state.sampleRateOption} Hz",
                         style = MaterialTheme.typography.titleSmall,
@@ -328,7 +328,7 @@ fun SettingsScreen(
                     labels = labels,
                     selectedOption = state.sampleRateOption,
                     onDismiss = { showSampleRateDialog = false },
-                    onOptionSelected = { 
+                    onOptionSelected = {
                         onSampleRateChange(it)
                         showSampleRateDialog = false
                     },
@@ -366,7 +366,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
-                    
+
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -387,7 +387,7 @@ fun SettingsScreen(
                             label = { Text("AudioTrack") }
                         )
                     }
-                    
+
                     Spacer(Modifier.height(12.dp))
                     val desc = when(state.engineTypeOption) {
                         0 -> "AAudio: Low latency, high performance. Recommended for Android 8.1+."
@@ -409,7 +409,7 @@ fun SettingsScreen(
             var showPeriodDialog by remember { mutableStateOf(false) }
             val options = listOf(0, 4096, 2048, 1024, 960, 512, 480, 360, 256, 240, 192, 128, 120, 96, 64)
             val labels = listOf("Auto", "4096", "2048", "1024", "960", "512", "480", "360", "256", "240", "192", "128", "120", "96", "64")
-            
+
             ElevatedCard(
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().clickable { showPeriodDialog = true }
@@ -427,7 +427,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    
+
                     val index = options.indexOf(state.periodSizeOption)
                     val label = if (index >= 0) labels[index] else state.periodSizeOption.toString()
                     Text(
@@ -438,7 +438,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            
+
             if (showPeriodDialog) {
                 SelectionDialog(
                     title = "Period size (frames)",
@@ -453,7 +453,7 @@ fun SettingsScreen(
                 )
             }
         }
-        
+
         // USB Settings
         item {
             Text(
@@ -526,7 +526,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -565,7 +565,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -633,7 +633,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -672,7 +672,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -703,7 +703,7 @@ fun SettingsScreen(
         item {
             ElevatedCard(shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -727,10 +727,10 @@ fun SettingsScreen(
                             enabled = state.keepScreenOnOption
                         )
                     }
-                    
+
                     if (state.screensaverEnabled && state.keepScreenOnOption) {
                         Spacer(Modifier.height(12.dp))
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -741,7 +741,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
-                            
+
                             Slider(
                                 value = ((state.screensaverTimeout - 5) / 5).toFloat(),
                                 onValueChange = { val snapped = it.roundToInt(); val timeout = 5 + snapped * 5; onScreensaverTimeoutChange(timeout) },
@@ -750,9 +750,9 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(2f)
                             )
                         }
-                        
+
                         Spacer(Modifier.height(12.dp))
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -763,7 +763,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
-                            
+
                             Slider(
                                 value = ((state.screensaverRepositionInterval - 5) / 5).toFloat(),
                                 onValueChange = { val snapped = it.roundToInt(); val interval = 5 + snapped * 5; onScreensaverRepositionIntervalChange(interval) },
@@ -772,9 +772,9 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(2f)
                             )
                         }
-                        
+
                         Spacer(Modifier.height(12.dp))
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically

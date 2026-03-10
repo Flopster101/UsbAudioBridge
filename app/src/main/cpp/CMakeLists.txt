@@ -19,7 +19,7 @@ target_include_directories(tinyalsa PUBLIC
     ${CMAKE_SOURCE_DIR}/tinyalsa/include)
 
 # Define our JNI library
-add_library(usbaudio SHARED 
+add_library(usbaudio SHARED
     native-lib.cpp
     logging/logging.cpp
     audio/aaudio_engine.cpp

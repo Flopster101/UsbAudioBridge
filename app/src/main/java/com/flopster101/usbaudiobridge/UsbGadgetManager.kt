@@ -20,18 +20,18 @@ object UsbGadgetManager {
     private const val TAG = "UsbGadgetManager"
     private const val UAC_VERSION_1 = 1
     private const val UAC_VERSION_2 = 2
-    
+
     private const val GADGET_ROOT = "/config/usb_gadget/g1"
     private const val CH_MASK = 3
     private const val SAMPLE_SIZE = 2
-    
+
     // Explicit Identity to force Windows Re-enumeration
     private const val VENDOR_ID = "0x1d6b" // Linux Foundation
     private const val PRODUCT_ID = "0x0104" // Multifunction Composite Gadget
-    
+
     private const val MANUFACTURER = "FloppyKernel Project"
     private const val PRODUCT = "USB Audio Bridge"
-    
+
     // Mutex to prevent concurrent gadget operations
     private val gadgetMutex = Mutex()
 
@@ -112,7 +112,7 @@ object UsbGadgetManager {
             "vendor.usb-gadget-hal",
             "usbgadget-hal-1-0"
         )
-        
+
         for (name in candidates) {
             val status = runRootCommandGetOutput("getprop init.svc.$name")
             if (status == "running" || status == "restarting") {
@@ -126,12 +126,12 @@ object UsbGadgetManager {
         // Only run this on MediaTek devices
         val hardware = runRootCommandGetOutput("getprop ro.hardware")
         val platform = runRootCommandGetOutput("getprop ro.board.platform")
-        
-        val isMtk = hardware.contains("mt", ignoreCase = true) || 
+
+        val isMtk = hardware.contains("mt", ignoreCase = true) ||
                     hardware.contains("mediatek", ignoreCase = true) ||
-                    platform.contains("mt", ignoreCase = true) || 
+                    platform.contains("mt", ignoreCase = true) ||
                     platform.contains("mediatek", ignoreCase = true)
-                    
+
         if (!isMtk) return
 
         val value = if (enable) "1" else "0"
@@ -139,7 +139,7 @@ object UsbGadgetManager {
             "/sys/class/udc/$udcName/device/mode",
             "/sys/class/udc/$udcName/device/cmode"
         )
-        
+
         for (path in paths) {
             if (runRootCommand("test -f $path", {})) {
                 logCallback("[Gadget] Setting MTK specific mode: $path -> $value")
@@ -170,14 +170,14 @@ object UsbGadgetManager {
             settingsRepo.clearStoppedHalService()
         }
     }
-    
+
     /**
      * Check if the ffs.adb function exists in configfs.
      */
     private fun isFfsAdbFunctionAvailable(): Boolean {
         return runRootCommand("test -d $GADGET_ROOT/functions/ffs.adb", {})
     }
-    
+
     /**
      * Restore USB config to system control.
      * This triggers the system (HAL or init.rc) to reconfigure USB.
@@ -203,25 +203,25 @@ object UsbGadgetManager {
     /**
      * Soft unbind - only uses direct UDC writes, preserves ffs.adb state.
      * Returns true if unbind succeeded without needing system property changes.
-     * 
+     *
      * This is the only safe way to unbind if we want to preserve ADB, because
      * setting sys.usb.config=none triggers init.rc to stop adbd.
      */
     private suspend fun softUnbind(logCallback: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val initialUdc = getUdcContent()
         logCallback("[Gadget] Soft unbind starting (current UDC='$initialUdc')...")
-        
+
         if (initialUdc.isEmpty() || initialUdc == "none" || initialUdc.isBlank()) {
             logCallback("[Gadget] UDC already unbound.")
             return@withContext true
         }
-        
+
         // IMPORTANT: On some devices (Samsung), UDC file needs chmod 666 before we can write to it
         Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod 666 $GADGET_ROOT/UDC")).waitFor()
-        
+
         // Try to unbind by writing empty to UDC
         Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '' > $GADGET_ROOT/UDC")).waitFor()
-        
+
         // Check if unbind succeeded
         for (i in 1..8) {
             Thread.sleep(400)
@@ -231,10 +231,10 @@ object UsbGadgetManager {
                 return@withContext true
             }
         }
-        
+
         // Try writing "none" explicitly
         Runtime.getRuntime().exec(arrayOf("su", "-c", "echo 'none' > $GADGET_ROOT/UDC")).waitFor()
-        
+
         for (i in 1..4) {
             Thread.sleep(400)
             val currentUdc = getUdcContent()
@@ -248,7 +248,7 @@ object UsbGadgetManager {
         logCallback("[Gadget] Soft unbind failed - UDC='$finalUdc' (system is rebinding immediately)")
         return@withContext false
     }
-    
+
     /**
      * Hard unbind - uses system properties which trigger HAL/init reconfiguration.
      * This WILL disrupt ADB because init.rc stops adbd when sys.usb.config=none.
@@ -276,7 +276,7 @@ object UsbGadgetManager {
             udc.isEmpty() || udc == "none" || udc.isBlank()
         } catch(e: Exception) { false }
     }
-    
+
     private fun getUdcContent(): String {
          val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/UDC"))
          return p.inputStream.bufferedReader().readText().trim()
@@ -313,9 +313,9 @@ object UsbGadgetManager {
     }
 
     suspend fun enableGadget(
-        logCallback: (String) -> Unit, 
-        sampleRate: Int = 48000, 
-        settingsRepo: SettingsRepository? = null, 
+        logCallback: (String) -> Unit,
+        sampleRate: Int = 48000,
+        settingsRepo: SettingsRepository? = null,
         keepAdb: Boolean = false,
         uacVersion: Int = UAC_VERSION_2
     ): Boolean = withContext(Dispatchers.IO) {
@@ -323,11 +323,11 @@ object UsbGadgetManager {
             enableGadgetInternal(logCallback, sampleRate, settingsRepo, keepAdb, uacVersion)
         }
     }
-    
+
     private suspend fun enableGadgetInternal(
-        logCallback: (String) -> Unit, 
-        sampleRate: Int = 48000, 
-        settingsRepo: SettingsRepository? = null, 
+        logCallback: (String) -> Unit,
+        sampleRate: Int = 48000,
+        settingsRepo: SettingsRepository? = null,
         keepAdb: Boolean = false,
         uacVersion: Int = UAC_VERSION_2
     ): Boolean {
@@ -343,7 +343,7 @@ object UsbGadgetManager {
         val sysUsbState = if (normalizedUacVersion == UAC_VERSION_1) "uac1" else "uac2"
 
         logCallback("[Gadget] Configuring $uacDisplayName gadget ($sampleRate Hz)...")
-        
+
         // Backup original USB config (sys/vendor) if not already stored
         if (settingsRepo != null) {
             val (savedSys, savedVendor) = settingsRepo.getOriginalUsbConfig()
@@ -377,10 +377,10 @@ object UsbGadgetManager {
                 logCallback("[Gadget] ADB not currently active, ignoring keepAdb option.")
             }
         }
-        
+
         // Anti-Interference: Stop USB HAL if running
         stopUsbHal(logCallback, settingsRepo)
-        
+
         var deviceSerial = "UNKNOWN"
 
         // Backup original strings if not already done
@@ -390,13 +390,13 @@ object UsbGadgetManager {
                 try {
                     val pProd = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/product"))
                     val currProd = pProd.inputStream.bufferedReader().readText().trim()
-                    
+
                     val pMan = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/manufacturer"))
                     val currMan = pMan.inputStream.bufferedReader().readText().trim()
 
                     val pSerial = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat $GADGET_ROOT/strings/0x409/serialnumber"))
                     val currSerial = pSerial.inputStream.bufferedReader().readText().trim()
-                    
+
                     if (currProd.isNotEmpty() && !currProd.contains("Audio Bridge") && !currMan.contains("FloppyKernel")) {
                         settingsRepo.saveOriginalIdentity(currMan, currProd, currSerial)
                         deviceSerial = currSerial
@@ -406,11 +406,11 @@ object UsbGadgetManager {
                         val fallbackProd = pModel.inputStream.bufferedReader().readText().trim()
                         val pBrand = Runtime.getRuntime().exec("getprop ro.product.manufacturer")
                         val fallbackMan = pBrand.inputStream.bufferedReader().readText().trim()
-                        
+
                         // Try getting serial via su since app user likely can't read it
                         val pSer = Runtime.getRuntime().exec(arrayOf("su", "-c", "getprop ro.serialno"))
                         val fallbackSerial = pSer.inputStream.bufferedReader().readText().trim()
-                        
+
                         settingsRepo.saveOriginalIdentity(fallbackMan, fallbackProd, fallbackSerial)
                         deviceSerial = fallbackSerial
                         logCallback("[Gadget] Backed up identity from props: $fallbackMan - $fallbackProd ($fallbackSerial)")
@@ -422,16 +422,16 @@ object UsbGadgetManager {
                 deviceSerial = savedSerial
             }
         }
-        
+
         val bcdDevice = getBcdDeviceForRate(sampleRate)
         val pid = getPidForRate(sampleRate)
         val serial = getSerialNumberForRate(sampleRate, deviceSerial)
-        
+
         val needPreserveAdb = keepAdb && adbWasActive && ffsAdbExists
-        
+
         // Step 1: Try soft unbind first
         val softUnbindSucceeded = softUnbind(logCallback)
-        
+
         if (!softUnbindSucceeded) {
             if (needPreserveAdb) {
                 // Soft unbind failed and user wants ADB - we cannot proceed
@@ -440,7 +440,7 @@ object UsbGadgetManager {
                 logCallback("[Gadget] Please disable 'Keep ADB' option and try again.")
                 return false
             }
-            
+
             // Soft unbind failed but ADB preservation not needed - use hard unbind
             logCallback("[Gadget] Using hard unbind (ADB will be temporarily disabled)...")
             if (!hardUnbind(logCallback)) {
@@ -448,12 +448,12 @@ object UsbGadgetManager {
                 return false
             }
         }
-        
+
         // Step 2: Ensure we're fully unbound
         if (!softUnbind(logCallback)) {
             logCallback("[Gadget] UDC already released.")
         }
-        
+
         // Step 3: Check if we can still use ADB (only matters if soft unbind succeeded)
         // On QTI HAL devices, soft unbind works and ffs.adb remains available.
         // We only check if the function directory exists - the sys.usb.ffs.ready property
@@ -461,37 +461,37 @@ object UsbGadgetManager {
         var adbAvailable = false
         if (softUnbindSucceeded && needPreserveAdb) {
             adbAvailable = isFfsAdbFunctionAvailable()
-            
+
             if (adbAvailable) {
                 logCallback("[Gadget] ffs.adb is available for composite gadget.")
             } else {
                 logCallback("[Gadget] ffs.adb became unavailable, proceeding without ADB.")
             }
         }
-        
+
         applySeLinuxPolicy(logCallback)
-        
+
         // Step 4: Setup configfs structure
         val configCommands = mutableListOf(
             // Clear existing function links
             "rm -f $GADGET_ROOT/configs/b.1/f* || true",
             "rm -f $GADGET_ROOT/os_desc/b.1 || true",
-            
+
             // Remove old UAC functions if they exist
             "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true",
-            
+
             // Set Device Identity
             "echo \"$VENDOR_ID\" > $GADGET_ROOT/idVendor",
             "echo \"$pid\" > $GADGET_ROOT/idProduct",
             "echo \"$bcdDevice\" > $GADGET_ROOT/bcdDevice",
             "echo \"0x0200\" > $GADGET_ROOT/bcdUSB",
-            
+
             // Windows OS Descriptor
             "echo \"1\" > $GADGET_ROOT/os_desc/use",
             "echo \"0x1\" > $GADGET_ROOT/os_desc/b_vendor_code",
             "echo \"MSFT100\" > $GADGET_ROOT/os_desc/qw_sign",
-            
+
             // Create and configure selected UAC function
             "mkdir -p $uacFunctionPath",
             "echo $sampleRate > $uacFunctionPath/p_srate",
@@ -501,18 +501,18 @@ object UsbGadgetManager {
             "echo $CH_MASK > $uacFunctionPath/c_chmask",
             "echo $SAMPLE_SIZE > $uacFunctionPath/c_ssize",
             "echo 2 > $uacFunctionPath/req_number 2>/dev/null || true",
-            
+
             // Set device strings
             "mkdir -p $GADGET_ROOT/strings/0x409",
             "echo \"$MANUFACTURER\" > $GADGET_ROOT/strings/0x409/manufacturer",
             "echo \"$PRODUCT\" > $GADGET_ROOT/strings/0x409/product",
             "echo \"$serial\" > $GADGET_ROOT/strings/0x409/serialnumber",
-            
+
             // Set Configuration String
             "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409",
             "ln -s $GADGET_ROOT/configs/b.1 $GADGET_ROOT/os_desc/b.1"
         )
-        
+
         // Link functions
         if (adbAvailable) {
             configCommands.add("echo \"USB Audio + ADB\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration")
@@ -522,20 +522,20 @@ object UsbGadgetManager {
             configCommands.add("echo \"USB Audio\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration")
             configCommands.add("ln -s $uacFunctionPath $GADGET_ROOT/configs/b.1/f1")
         }
-        
+
         if (!runRootCommands(configCommands, logCallback) ||
             !runRootCommand("test -d $uacFunctionPath", {})) {
              logCallback("[Gadget] Error: Your kernel does not support $uacDisplayName.")
              logCallback("[Gadget] This feature requires $uacKernelConfigOption enabled in kernel.")
              return false
         }
-        
+
         Thread.sleep(500)
-        
+
         // Step 5: Bind the gadget
         if (bindGadgetWithRetry(logCallback)) {
             runRootCommands(listOf("setprop sys.usb.state $sysUsbState")) {}
-            
+
             if (adbAvailable) {
                 logCallback("[Gadget] Composite gadget active: $uacDisplayName + ADB")
             } else {
@@ -544,7 +544,7 @@ object UsbGadgetManager {
                     logCallback("[Gadget] Note: ADB will reconnect when you disable the gadget.")
                 }
             }
-            
+
             return true
         } else {
             logCallback("[Gadget] Failed to bind UDC after retries.")
@@ -564,42 +564,42 @@ object UsbGadgetManager {
     private fun getPreferredUdcController(): String? {
         val controllers = getAvailableUdcControllers()
         if (controllers.isEmpty()) return null
-        
+
         // Prefer non-dummy controllers (e.g. musb-hdrc, dwc3, etc.)
         val realController = controllers.firstOrNull { !it.contains("dummy", ignoreCase = true) }
         return realController ?: controllers.first()
     }
-    
+
     private fun bindGadgetWithRetry(logCallback: (String) -> Unit): Boolean {
         for (i in 1..5) {
              try {
                  val udcName = getPreferredUdcController()
-                 
+
                  if (udcName == null) {
                      logCallback("[Gadget] Error: No UDC controller found.")
                      return false
                  }
-                 
+
                  // MTK Specific: Force device mode
                  configureMtkMode(udcName, true, logCallback)
-                 
+
                  // Ensure UDC is writable and clear
                  Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod 666 $GADGET_ROOT/UDC")).waitFor()
                  Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '' > $GADGET_ROOT/UDC")).waitFor()
                  Thread.sleep(200)
-                 
+
                  logCallback("[Gadget] Binding to $udcName (Attempt $i)...")
                  runRootCommand("echo '$udcName' > $GADGET_ROOT/UDC", logCallback)
-                 
+
                  Thread.sleep(300)
                  val currentUdc = getUdcContent()
                  if (currentUdc == udcName) {
                      return true
                  }
-                 
+
                  logCallback("[Gadget] Bind attempt $i failed. UDC='$currentUdc'")
                  Thread.sleep(800)
-                 
+
              } catch (e: Exception) {
                  logCallback("[Gadget] Exception during bind: ${e.message}")
              }
@@ -612,15 +612,15 @@ object UsbGadgetManager {
             disableGadgetInternal(logCallback, settingsRepo)
         }
     }
-    
+
     private suspend fun disableGadgetInternal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository? = null) {
         logCallback("[Gadget] Disabling USB gadget...")
-        
+
         // Try soft unbind first, fall back to hard
         if (!softUnbind(logCallback)) {
             hardUnbind(logCallback)
         }
-        
+
         // Restore strings if available
         var restored = false
         if (settingsRepo != null) {
@@ -630,13 +630,13 @@ object UsbGadgetManager {
                     "echo \"$origMan\" > $GADGET_ROOT/strings/0x409/manufacturer",
                     "echo \"$origProd\" > $GADGET_ROOT/strings/0x409/product",
                     "echo \"$origSerial\" > $GADGET_ROOT/strings/0x409/serialnumber"
-                )) { } 
+                )) { }
                 logCallback("[Gadget] Restored original identity.")
                 settingsRepo.clearOriginalIdentity()
                 restored = true
             }
         }
-        
+
         if (!restored) {
             runRootCommands(listOf(
                 "echo \"\" > $GADGET_ROOT/strings/0x409/manufacturer",
@@ -653,7 +653,7 @@ object UsbGadgetManager {
             "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
             "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true"
         ), logCallback)
-        
+
         // MTK Specific: Reset device mode
         try {
             val udcName = getPreferredUdcController()
@@ -663,14 +663,14 @@ object UsbGadgetManager {
         } catch (e: Exception) {
             // Ignore
         }
-        
+
         // Restore system USB control
         restoreUsbConfig(settingsRepo, logCallback)
         settingsRepo?.clearOriginalUsbConfig()
-        
+
         // Restart USB HAL if we stopped it
         startUsbHal(logCallback, settingsRepo)
-        
+
         logCallback("[Gadget] Gadget disabled. USB restored to system control.")
     }
 
@@ -681,16 +681,16 @@ object UsbGadgetManager {
             "allow untrusted_app audio_device dir { search getattr read open }",
             "allow untrusted_app cgroup dir { search getattr read open }"
         )
-        
+
         val tmpPath = "/data/local/tmp/uac2_policy.te"
         val policyBlob = rules.joinToString("\n")
-        
+
         val rootSolution = getRootSolution()
         logCallback("[Gadget] Detected Root Solution: $rootSolution")
-        
+
         var policyBin: String? = null
         var useKsud = false
-        
+
         when (rootSolution) {
             "KernelSU" -> {
                 // KernelSU usually puts ksud in /data/adb/ksu/bin/ksud
@@ -720,14 +720,14 @@ object UsbGadgetManager {
                     "/system/bin/magiskpolicy",
                     "/sbin/supolicy"
                 )
-                
+
                 for (path in magiskPolicyPaths) {
                     if (runRootCommand("test -f $path", {})) {
                         policyBin = path
                         break
                     }
                 }
-                
+
                 // Fallback: check Magisk tmpfs
                 if (policyBin == null) {
                     val magiskTmpResult = StringBuilder()
@@ -743,7 +743,7 @@ object UsbGadgetManager {
                 }
             }
         }
-        
+
         // Try applying policy if we found a tool
         if (policyBin != null) {
             try {
@@ -755,9 +755,9 @@ object UsbGadgetManager {
                     } else {
                         "$policyBin --live --apply $tmpPath"
                     }
-                    
-                    if (runRootCommand(applyCmd, { msg -> 
-                        if (msg.contains("error", ignoreCase = true)) logCallback("[Policy] $msg") 
+
+                    if (runRootCommand(applyCmd, { msg ->
+                        if (msg.contains("error", ignoreCase = true)) logCallback("[Policy] $msg")
                     })) {
                         logCallback("[Gadget] SELinux rules applied using $policyBin")
                         runRootCommand("rm -f $tmpPath", {})
@@ -797,21 +797,21 @@ object UsbGadgetManager {
 
     suspend fun findAndPrepareCard(logCallback: (String) -> Unit): Int = withContext(Dispatchers.IO) {
         logCallback("[Gadget] Scanning for USB audio gadget card...")
-        
+
         var cardIndex = -1
-        
+
         try {
             val checkCmd = "cat /proc/asound/cards | grep -iE 'UAC[12][[:space:]_-]*Gadget|UAC[12]Gadget' | head -n1 | awk '{print \$1}'"
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", checkCmd))
             val output = process.inputStream.bufferedReader().readText().trim()
-            
+
             if (output.isNotEmpty()) {
                 cardIndex = output.filter { it.isDigit() }.toIntOrNull() ?: -1
             }
         } catch (e: Exception) {
             logCallback("[Gadget] Error scanning cards: ${e.message}")
         }
-            
+
         if (cardIndex != -1) {
             val devPath = "/dev/snd/pcmC${cardIndex}D0c"
             if (runRootCommand("test -e $devPath", {})) {
@@ -829,7 +829,7 @@ object UsbGadgetManager {
         } else {
              logCallback("[Gadget] USB audio gadget card not found. Is USB connected?")
         }
-        
+
         return@withContext -1
     }
 
@@ -863,7 +863,7 @@ object UsbGadgetManager {
 
             // Get active functions by reading symlink targets in configs/b.1/
             val functionsProcess = Runtime.getRuntime().exec(arrayOf(
-                "su", "-c", 
+                "su", "-c",
                 "for f in $GADGET_ROOT/configs/b.1/f*; do [ -L \"\$f\" ] && basename \$(readlink \"\$f\"); done 2>/dev/null"
             ))
             val functionsOutput = functionsProcess.inputStream.bufferedReader().readText().trim()
@@ -871,7 +871,7 @@ object UsbGadgetManager {
                 functionsOutput.lines()
                     .filter { it.isNotBlank() }
                     .map { it.trim() }
-                    .map { 
+                    .map {
                         // Clean up function names (e.g., "uac2.0" -> "uac2", "ffs.adb" -> "adb")
                         when {
                             it.startsWith("uac1") -> "uac1"

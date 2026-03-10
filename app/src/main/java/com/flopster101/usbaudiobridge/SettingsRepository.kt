@@ -25,7 +25,7 @@ class SettingsRepository(context: Context) {
 
     fun saveUacVersion(version: Int) = prefs.edit().putInt("uac_version", version).apply()
     fun getUacVersion(): Int = prefs.getInt("uac_version", 2) // 2 = UAC2 (default)
-    
+
     fun saveKeepAdb(enabled: Boolean) = prefs.edit().putBoolean("keep_adb", enabled).apply()
     fun getKeepAdb(): Boolean = prefs.getBoolean("keep_adb", false)
 
@@ -74,7 +74,7 @@ class SettingsRepository(context: Context) {
 
     fun saveScreensaverFullscreen(enabled: Boolean) = prefs.edit().putBoolean("screensaver_fullscreen", enabled).apply()
     fun getScreensaverFullscreen(): Boolean = prefs.getBoolean("screensaver_fullscreen", true) // Default true
-    
+
     fun saveOriginalIdentity(manufacturer: String, product: String, serial: String) {
         prefs.edit()
             .putString("orig_man", manufacturer)
@@ -82,14 +82,14 @@ class SettingsRepository(context: Context) {
             .putString("orig_serial", serial)
             .apply()
     }
-    
+
     fun getOriginalIdentity(): Triple<String?, String?, String?> {
         val m = prefs.getString("orig_man", null)
         val p = prefs.getString("orig_prod", null)
         val s = prefs.getString("orig_serial", null)
         return Triple(m, p, s)
     }
-    
+
     fun clearOriginalIdentity() {
         prefs.edit()
             .remove("orig_man")

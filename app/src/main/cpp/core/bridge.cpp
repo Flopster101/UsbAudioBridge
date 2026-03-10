@@ -60,7 +60,7 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
     // Smart Auto: Target ~4 periods per buffer for stability/latency balance.
     size_t buffer_frames = rb->capacity() / 4; // 16-bit stereo = 4 bytes/frame
     size_t target_period = buffer_frames / 4;
-    
+
     // Find best match (largest size <= target)
     size_t best_match = 64; // Default to smallest
     for (size_t c : candidates) {
@@ -69,9 +69,9 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
             break; // Found largest since candidates are desc
         }
     }
-    
+
     periods.push_back(best_match);
-    
+
     // Add others as fallback (skip duplicates)
     for (size_t c : candidates) {
         if (c != best_match) periods.push_back(c);

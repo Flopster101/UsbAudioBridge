@@ -110,7 +110,7 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
                 )
-            
+
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -210,7 +210,7 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
                 )
-            
+
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -238,7 +238,7 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
                 )
-            
+
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -269,11 +269,11 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     // Copy Button
                     val context = LocalContext.current
                     IconButton(
-                        onClick = { 
+                        onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("UsbAudioLogs", state.logText)
                             clipboard.setPrimaryClip(clip)
@@ -329,7 +329,7 @@ fun HomeScreen(
                     Spacer(Modifier.width(8.dp))
 
                     val rotation by animateFloatAsState(
-                        targetValue = if (state.isLogsExpanded) 180f else 0f, 
+                        targetValue = if (state.isLogsExpanded) 180f else 0f,
                         label = "arrowRotation"
                     )
                     Icon(
@@ -361,7 +361,7 @@ fun HomeScreen(
                             }
                             previousMaxValue = logScroll.maxValue
                         }
-                        
+
                         val nestedScrollInterop = remember {
                             object : NestedScrollConnection {
                                 override fun onPostScroll(
@@ -393,7 +393,7 @@ fun HomeScreen(
                     }
                 }
             }
-            
+
             // Bottom Padding
             item {
                 Spacer(Modifier.height(32.dp))

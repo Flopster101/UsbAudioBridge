@@ -28,11 +28,11 @@ fun ScreensaverOverlay(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    
+
     var contentSize by remember { mutableStateOf<IntSize>(IntSize.Zero) }
-    
+
     var isPositioned by remember(state.screensaverActive) { mutableStateOf(false) }
-    
+
     // Start centered (approximate, will be corrected when content size is known)
     var position by remember(state.screensaverActive) {
         val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
@@ -43,20 +43,20 @@ fun ScreensaverOverlay(
         val centerY = maxOf(0f, (screenHeight - approxContentHeight) / 2f)
         mutableStateOf(Pair(centerX, centerY))
     }
-    
+
     LaunchedEffect(contentSize) {
         if (contentSize != IntSize.Zero) {
             val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
             val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
-            
+
             val centerX = maxOf(0f, (screenWidth - contentSize.width) / 2f)
             val centerY = maxOf(0f, (screenHeight - contentSize.height) / 2f)
-            
+
             position = Pair(centerX, centerY)
             isPositioned = true
         }
     }
-    
+
     // Random repositioning
     LaunchedEffect(state.screensaverRepositionInterval) {
         while (true) {
@@ -64,18 +64,18 @@ fun ScreensaverOverlay(
             if (contentSize != IntSize.Zero) {
                 val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
                 val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
-                
+
                 val maxX = maxOf(0f, screenWidth - contentSize.width.toFloat())
                 val maxY = maxOf(0f, screenHeight - contentSize.height.toFloat())
-                
+
                 val randomX = kotlin.random.Random.nextFloat() * maxX
                 val randomY = kotlin.random.Random.nextFloat() * maxY
-                
+
                 position = Pair(randomX, randomY)
             }
         }
     }
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -106,7 +106,7 @@ fun ScreensaverOverlay(
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            
+
             // Title
             Text(
                 "USB Audio Bridge",
@@ -115,7 +115,7 @@ fun ScreensaverOverlay(
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
-            
+
             // State
             Row(
                 horizontalArrangement = Arrangement.Center,
@@ -134,7 +134,7 @@ fun ScreensaverOverlay(
                     textAlign = TextAlign.Center
                 )
             }
-            
+
             // Sample rate
             Text(
                 "Sample rate: ${state.sampleRate}",

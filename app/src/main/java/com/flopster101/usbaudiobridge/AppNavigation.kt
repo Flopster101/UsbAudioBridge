@@ -140,20 +140,20 @@ fun AppNavigation(
     // Screensaver timer
     LaunchedEffect(screensaverEnabled, state.screensaverTimeout) {
         if (!screensaverEnabled) return@LaunchedEffect
-        
+
         lastInteractionTime = System.currentTimeMillis()  // Reset timer when enabled
-        
+
         while (true) {
             delay(1000) // Check every second
             val timeSinceLastInteraction = System.currentTimeMillis() - lastInteractionTime
             val shouldActivate = timeSinceLastInteraction >= (state.screensaverTimeout * 1000L)
-            
+
             if (shouldActivate && !state.screensaverActive) {
                 onScreensaverActivate()
             }
         }
     }
-    
+
     // Screensaver overlay
     if (state.screensaverActive) {
         ScreensaverOverlay(

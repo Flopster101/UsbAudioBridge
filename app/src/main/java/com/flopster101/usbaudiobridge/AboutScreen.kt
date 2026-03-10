@@ -26,7 +26,7 @@ fun AboutScreen() {
         // Header
         item {
             Spacer(Modifier.height(32.dp))
-            
+
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -41,29 +41,29 @@ fun AboutScreen() {
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            
+
             Spacer(Modifier.height(16.dp))
-            
+
             Text(
                 "USB Audio Bridge",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            
+
             Text(
                 "Version ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            
+
             Text(
                 "Build ${BuildConfig.GIT_HASH}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        
+
         // Description Card
         item {
             ElevatedCard(
@@ -80,9 +80,9 @@ fun AboutScreen() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Spacer(Modifier.height(12.dp))
-                    
+
                     Text(
                         "Uses the Linux kernel's USB Gadget subsystem to expose a UAC2 (USB Audio Class 2.0) device by default, with optional UAC1 compatibility mode for older hosts.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -92,7 +92,7 @@ fun AboutScreen() {
                 }
             }
         }
-        
+
         // Kernel Compatibility Notice
         item {
             ElevatedCard(
@@ -117,9 +117,9 @@ fun AboutScreen() {
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
-                    
+
                     Spacer(Modifier.height(12.dp))
-                    
+
                     Text(
                         "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -133,9 +133,9 @@ fun AboutScreen() {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
-                    
+
                     Spacer(Modifier.height(8.dp))
-                    
+
                     Text(
                         "UAC2 has been available in Linux since 3.18, but Android commonly enables it by default from GKI 2.0 (Android 12, kernel 5.10+).",
                         style = MaterialTheme.typography.bodySmall,
@@ -152,7 +152,7 @@ fun AboutScreen() {
                 }
             }
         }
-        
+
         // Libraries Used
         item {
             ElevatedCard(
@@ -166,9 +166,9 @@ fun AboutScreen() {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    
+
                     Spacer(Modifier.height(12.dp))
-                    
+
                     AboutLibraryRow("TinyALSA", "Lightweight ALSA library for PCM capture")
                     AboutLibraryRow("AAudio", "Android's high-performance audio API")
                     AboutLibraryRow("OpenSL ES", "Cross-platform audio API for embedded systems")
@@ -177,7 +177,7 @@ fun AboutScreen() {
                 }
             }
         }
-        
+
         // License & Copyright
         item {
             Spacer(Modifier.height(8.dp))
