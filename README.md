@@ -3,7 +3,7 @@
 [![Android Build](https://github.com/Flopster101/UsbAudioBridge/actions/workflows/android-build.yml/badge.svg?branch=master)](https://github.com/Flopster101/UsbAudioBridge/actions/workflows/android-build.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-USB Audio Bridge turns a rooted Android device into a USB Audio Class 2.0 sound card for any USB host (PC, phone, tablet). It exposes a UAC2 gadget via ConfigFS, captures audio from the host, and plays it on the phone. It can also send the phone microphone back to the host.
+USB Audio Bridge turns a rooted Android device into a USB audio gadget sound card for any USB host (PC, phone, tablet). It exposes a UAC2 gadget by default (with optional UAC1 compatibility mode) via ConfigFS, captures audio from the host, and plays it on the phone. It can also send the phone microphone back to the host.
 
 No additional drivers or companion apps are required on the host.
 
@@ -17,18 +17,22 @@ No additional drivers or companion apps are required on the host.
 	- Magisk
 	- KernelSU
 	- APatch (untested)
-- Kernel with UAC2 gadget support: `CONFIG_USB_CONFIGFS_F_UAC2=y`
-	- Standard on GKI 2.0+ (Android 12 / kernel 5.10+)
-	- Older kernels may require a custom build
+- Kernel with USB audio gadget support:
+	- For UAC2 mode: `CONFIG_USB_CONFIGFS_F_UAC2=y`
+		- Available in Linux since 3.18, but commonly enabled by default on Android only from GKI 2.0+ (Android 12 / kernel 5.10+)
+	- For UAC1 mode: `CONFIG_USB_CONFIGFS_F_UAC1=y`
+		- Available since older kernels, but usually not enabled by default (including GKI kernels)
+		- May be present on some OEM/custom kernels
 
 ## How it works
-- Configures a USB Gadget (UAC2) using ConfigFS.
+- Configures a USB Gadget (UAC2 by default, optional UAC1) using ConfigFS.
 - Captures audio via TinyALSA from the gadget PCM device.
 - Bridges to the selected output engine (AAudio/OpenSL/AudioTrack).
 - Provides separate mute controls for speaker and mic at the native layer.
 
 ## Features
-- UAC2 gadget emulation (plug-and-play on most hosts)
+- UAC2 gadget emulation (default, recommended)
+- Optional UAC1 gadget mode for older host compatibility
 - Speaker and mic bridging at the same time
 - Multiple audio engines: AAudio, OpenSL ES, AudioTrack
 - Configurable latency presets and advanced buffer controls
@@ -40,7 +44,7 @@ No additional drivers or companion apps are required on the host.
 - Interactive notification
 
 ## Usage
-1. Ensure root access is granted and your kernel supports UAC2 gadget mode.
+1. Ensure root access is granted and your kernel supports the selected USB audio class mode (UAC2 or UAC1).
 2. Open the app and enable the USB gadget.
 3. Connect the device to the host via USB.
 4. Start audio capture to begin the bridge.
