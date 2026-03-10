@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -42,19 +43,16 @@ fun SettingsScreen(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         item {
-            Text(
-                text = "AUDIO CONFIGURATION",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            SettingsSectionTitle("AUDIO CONFIGURATION")
+            Spacer(Modifier.height(8.dp))
         }
 
         // Buffer Configuration
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Top) {
                 Column(modifier = Modifier.fillMaxWidth()) {
 
                     // Title
@@ -186,13 +184,11 @@ fun SettingsScreen(
                 }
             }
         }
-
-
-
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Active Directions (Devices)
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Middle) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Audio devices", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
@@ -237,6 +233,7 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Mic Source
         item {
@@ -244,8 +241,8 @@ fun SettingsScreen(
             val options = listOf(6, 1, 5, 7, 9, 10)
             val labels = listOf("Auto (voice rec)", "Mic", "Camcorder", "Voice comm", "Unprocessed", "Performance")
 
-            ElevatedCard(
-                shape = RoundedCornerShape(16.dp),
+            GroupedSettingsCard(
+                position = SettingsGroupPosition.Middle,
                 modifier = Modifier.fillMaxWidth().clickable { showMicDialog = true }
             ) {
                 Row(
@@ -287,6 +284,7 @@ fun SettingsScreen(
                 )
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Sample Rate
         item {
@@ -294,8 +292,8 @@ fun SettingsScreen(
             val rates = listOf(22050, 32000, 44100, 48000, 88200, 96000, 192000)
             val labels = rates.map { "$it Hz" }
 
-            ElevatedCard(
-                shape = RoundedCornerShape(16.dp),
+            GroupedSettingsCard(
+                position = SettingsGroupPosition.Middle,
                 modifier = Modifier.fillMaxWidth().clickable { showSampleRateDialog = true }
             ) {
                 Row(
@@ -353,10 +351,11 @@ fun SettingsScreen(
                 )
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Output Engine
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Middle) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Audio output engine", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
@@ -403,6 +402,7 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Period Size
         item {
@@ -410,8 +410,8 @@ fun SettingsScreen(
             val options = listOf(0, 4096, 2048, 1024, 960, 512, 480, 360, 256, 240, 192, 128, 120, 96, 64)
             val labels = listOf("Auto", "4096", "2048", "1024", "960", "512", "480", "360", "256", "240", "192", "128", "120", "96", "64")
 
-            ElevatedCard(
-                shape = RoundedCornerShape(16.dp),
+            GroupedSettingsCard(
+                position = SettingsGroupPosition.Bottom,
                 modifier = Modifier.fillMaxWidth().clickable { showPeriodDialog = true }
             ) {
                  Row(
@@ -453,14 +453,12 @@ fun SettingsScreen(
                 )
             }
         }
+        item { Spacer(Modifier.height(20.dp)) }
 
         // USB Settings
         item {
-            Text(
-                text = "USB SETTINGS",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            SettingsSectionTitle("USB SETTINGS")
+            Spacer(Modifier.height(8.dp))
         }
 
         item {
@@ -468,8 +466,8 @@ fun SettingsScreen(
             val versions = listOf(2, 1)
             val labels = listOf("UAC2 (USB Audio Class 2.0)", "UAC1 (USB Audio Class 1.0)")
 
-            ElevatedCard(
-                shape = RoundedCornerShape(16.dp),
+            GroupedSettingsCard(
+                position = SettingsGroupPosition.Top,
                 modifier = Modifier.fillMaxWidth().clickable { showUacDialog = true }
             ) {
                 Row(
@@ -522,9 +520,10 @@ fun SettingsScreen(
                 )
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Row(
@@ -552,18 +551,16 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(20.dp)) }
 
         // Audio Behavior
         item {
-            Text(
-                text = "AUDIO BEHAVIOR",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            SettingsSectionTitle("AUDIO BEHAVIOR")
+            Spacer(Modifier.height(8.dp))
         }
 
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Top) {
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Row(
@@ -591,9 +588,10 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -620,18 +618,16 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(20.dp)) }
 
         // Notification
         item {
-            Text(
-                text = "NOTIFICATION",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            SettingsSectionTitle("NOTIFICATION")
+            Spacer(Modifier.height(8.dp))
         }
 
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Standalone) {
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Row(
@@ -659,18 +655,16 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(20.dp)) }
 
         // Display
         item {
-            Text(
-                text = "DISPLAY",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            SettingsSectionTitle("DISPLAY")
+            Spacer(Modifier.height(8.dp))
         }
 
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Top) {
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Row(
@@ -698,10 +692,11 @@ fun SettingsScreen(
                 }
             }
         }
+        item { Spacer(Modifier.height(2.dp)) }
 
         // Screensaver
         item {
-            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+            GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Row(
@@ -816,4 +811,66 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private enum class SettingsGroupPosition {
+    Standalone,
+    Top,
+    Middle,
+    Bottom
+}
+
+private val SettingsOuterCorner = 20.dp
+private val SettingsInnerCorner = 4.dp
+
+private fun groupedSettingsShape(position: SettingsGroupPosition): RoundedCornerShape {
+    return when (position) {
+        SettingsGroupPosition.Standalone -> RoundedCornerShape(SettingsOuterCorner)
+        SettingsGroupPosition.Top -> RoundedCornerShape(
+            topStart = SettingsOuterCorner,
+            topEnd = SettingsOuterCorner,
+            bottomStart = SettingsInnerCorner,
+            bottomEnd = SettingsInnerCorner
+        )
+        SettingsGroupPosition.Middle -> RoundedCornerShape(SettingsInnerCorner)
+        SettingsGroupPosition.Bottom -> RoundedCornerShape(
+            topStart = SettingsInnerCorner,
+            topEnd = SettingsInnerCorner,
+            bottomStart = SettingsOuterCorner,
+            bottomEnd = SettingsOuterCorner
+        )
+    }
+}
+
+@Composable
+private fun GroupedSettingsCard(
+    position: SettingsGroupPosition,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val shape = groupedSettingsShape(position)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp)
+    )
 }
