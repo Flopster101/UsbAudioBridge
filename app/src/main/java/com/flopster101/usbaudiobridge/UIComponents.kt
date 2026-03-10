@@ -106,14 +106,29 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
                 Spacer(Modifier.height(12.dp))
                 
                 Text(
-                    "Depending on your selected mode, your kernel needs CONFIG_USB_CONFIGFS_F_UAC2=y or CONFIG_USB_CONFIGFS_F_UAC1=y.",
+                    "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    "UAC1 compatibility mode requires CONFIG_USB_CONFIGFS_F_UAC1=y.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
                 Spacer(Modifier.height(12.dp))
                 
                 Text(
-                    "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). UAC1 is often available on older kernels.",
+                    "UAC2 has been available in Linux since 3.18, but Android commonly enables it by default from GKI 2.0 (Android 12, kernel 5.10+).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    "UAC1 is available on much older kernels, but is usually not enabled by default (including GKI). It may still exist on some OEM/custom kernels.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -269,7 +284,11 @@ fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
                 
                 Text(
-                    "This is normal in older kernels (<=4.19). To fix this, the kernel must be rebuilt with:",
+                    if (uacVersion == 1) {
+                        "UAC1 may exist on older kernels, but it is often disabled in stock/GKI builds. To enable it, the kernel must be rebuilt with:"
+                    } else {
+                        "UAC2 is unavailable or disabled in this kernel. To enable it, the kernel must be rebuilt with:"
+                    },
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
@@ -282,7 +301,11 @@ fun NoUacSupportDialog(uacVersion: Int, onDismiss: () -> Unit) {
                 )
                 
                 Text(
-                    "Rebuild it yourself or ask your kernel/ROM maintainer to do it.",
+                    if (uacVersion == 2) {
+                        "You can also try UAC1 compatibility mode first."
+                    } else {
+                        "Rebuild it yourself or ask your kernel/ROM maintainer to do it."
+                    },
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

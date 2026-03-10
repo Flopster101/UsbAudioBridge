@@ -121,7 +121,15 @@ fun AboutScreen() {
                     Spacer(Modifier.height(12.dp))
                     
                     Text(
-                        "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y; UAC1 compatibility mode requires CONFIG_USB_CONFIGFS_F_UAC1=y.",
+                        "UAC2 mode requires CONFIG_USB_CONFIGFS_F_UAC2=y.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        "UAC1 compatibility mode requires CONFIG_USB_CONFIGFS_F_UAC1=y.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
@@ -129,7 +137,15 @@ fun AboutScreen() {
                     Spacer(Modifier.height(8.dp))
                     
                     Text(
-                        "Google did not include UAC2 gadget support as standard until GKI 2.0 (Android 12, kernel 5.10+). On older kernels, try UAC1 mode first.",
+                        "UAC2 has been available in Linux since 3.18, but Android commonly enables it by default from GKI 2.0 (Android 12, kernel 5.10+).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        "UAC1 is available on much kernels, but is usually not enabled by default (including GKI). On older kernels, try UAC1 mode first.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                     )
