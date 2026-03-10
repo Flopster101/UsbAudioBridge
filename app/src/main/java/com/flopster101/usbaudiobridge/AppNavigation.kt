@@ -1,5 +1,9 @@
 package com.flopster101.usbaudiobridge
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -154,8 +158,12 @@ fun AppNavigation(
         }
     }
 
-    // Screensaver overlay
-    if (state.screensaverActive) {
+    // Screensaver overlay with fade transitions
+    AnimatedVisibility(
+        visible = state.screensaverActive,
+        enter = fadeIn(animationSpec = tween(durationMillis = 250)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 250))
+    ) {
         ScreensaverOverlay(
             state = state,
             onDismiss = {
