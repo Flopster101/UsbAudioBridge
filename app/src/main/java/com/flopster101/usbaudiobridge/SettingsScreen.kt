@@ -41,6 +41,8 @@ fun SettingsScreen(
     onScreensaverDvdSpeedChange: (Int) -> Unit,
     onScreensaverFullscreenChange: (Boolean) -> Unit,
     onMuteOnMediaButtonChange: (Boolean) -> Unit,
+    onThemeModeChange: (Int) -> Unit,
+    onDynamicColorsChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit
 ) {
     LazyColumn(
@@ -831,6 +833,95 @@ fun SettingsScreen(
                                 onCheckedChange = onScreensaverFullscreenChange
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(20.dp)) }
+
+        // Appearance
+        item {
+            SettingsSectionTitle("APPEARANCE")
+            Spacer(Modifier.height(8.dp))
+        }
+
+        item {
+            GroupedSettingsCard(position = SettingsGroupPosition.Top) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Theme", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Choose between Auto (follows system), Dark or Light mode.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = state.themeMode == 0,
+                            onClick = { onThemeModeChange(0) },
+                            label = { Text("Auto") },
+                            leadingIcon = {
+                                if (state.themeMode == 0) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        )
+                        FilterChip(
+                            selected = state.themeMode == 1,
+                            onClick = { onThemeModeChange(1) },
+                            label = { Text("Dark") },
+                            leadingIcon = {
+                                if (state.themeMode == 1) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        )
+                        FilterChip(
+                            selected = state.themeMode == 2,
+                            onClick = { onThemeModeChange(2) },
+                            label = { Text("Light") },
+                            leadingIcon = {
+                                if (state.themeMode == 2) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(2.dp)) }
+
+        item {
+            GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Dynamic colors",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                                    MaterialTheme.colorScheme.onSurface
+                                else
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                            Text(
+                                text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                                    "Use colors derived from your wallpaper (Material You)."
+                                else
+                                    "Requires Android 12 or later.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Switch(
+                            checked = state.dynamicColorsEnabled,
+                            onCheckedChange = onDynamicColorsChange,
+                            enabled = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                        )
                     }
                 }
             }

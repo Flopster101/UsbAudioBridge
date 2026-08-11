@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -288,7 +289,9 @@ class MainActivity : ComponentActivity() {
             screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
             screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
             screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
-            muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
+            muteOnMediaButton = settingsRepo.getMuteOnMediaButton(),
+            themeMode = settingsRepo.getThemeMode(),
+            dynamicColorsEnabled = settingsRepo.getDynamicColors()
         )
 
         // Reconciliation: If in Simple mode, ensure bufferSize matches the preset
@@ -368,10 +371,19 @@ class MainActivity : ComponentActivity() {
             }
 
             // Basic Material Theme wrapper
-            MaterialTheme(
-                colorScheme = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
-                    dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
-            ) {
+            val systemInDark = isSystemInDarkTheme()
+            val useDark = when (uiState.themeMode) {
+                1 -> true
+                2 -> false
+                else -> systemInDark
+            }
+            val colorScheme = when {
+                uiState.dynamicColorsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                    if (useDark) dynamicDarkColorScheme(LocalContext.current) else dynamicLightColorScheme(LocalContext.current)
+                useDark -> darkColorScheme()
+                else -> lightColorScheme()
+            }
+            MaterialTheme(colorScheme = colorScheme) {
                 when (isRootGranted) {
                     null -> {
                         Box(
@@ -622,6 +634,14 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(muteOnMediaButton = it)
                                 settingsRepo.saveMuteOnMediaButton(it)
                             },
+                            onThemeModeChange = {
+                                uiState = uiState.copy(themeMode = it)
+                                settingsRepo.saveThemeMode(it)
+                            },
+                            onDynamicColorsChange = {
+                                uiState = uiState.copy(dynamicColorsEnabled = it)
+                                settingsRepo.saveDynamicColors(it)
+                            },
                             onResetSettings = {
                                 settingsRepo.resetDefaults()
                                 uiState = uiState.copy(
@@ -653,7 +673,9 @@ class MainActivity : ComponentActivity() {
                                     screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
                                     screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
                                     screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
-                                    muteOnMediaButton = settingsRepo.getMuteOnMediaButton()
+                                    muteOnMediaButton = settingsRepo.getMuteOnMediaButton(),
+                                    themeMode = settingsRepo.getThemeMode(),
+                                    dynamicColorsEnabled = settingsRepo.getDynamicColors()
                                 )
                             },
                             onToggleLogs = { uiState = uiState.copy(isLogsExpanded = !uiState.isLogsExpanded) }

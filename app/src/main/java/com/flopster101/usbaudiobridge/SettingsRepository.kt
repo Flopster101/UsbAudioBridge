@@ -129,6 +129,13 @@ class SettingsRepository(context: Context) {
     fun getStoppedHalService(): String? = prefs.getString("stopped_hal_service", null)
     fun clearStoppedHalService() = prefs.edit().remove("stopped_hal_service").apply()
 
+    // Appearance
+    fun saveThemeMode(mode: Int) = prefs.edit().putInt("theme_mode", mode).apply()
+    fun getThemeMode(): Int = prefs.getInt("theme_mode", 0) // 0 = Auto
+
+    fun saveDynamicColors(enabled: Boolean) = prefs.edit().putBoolean("dynamic_colors", enabled).apply()
+    fun getDynamicColors(): Boolean = prefs.getBoolean("dynamic_colors", true)
+
     fun resetDefaults() {
         prefs.edit().clear().apply()
     }

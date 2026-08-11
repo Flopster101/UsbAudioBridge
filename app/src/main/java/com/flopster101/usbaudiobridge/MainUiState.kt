@@ -41,6 +41,10 @@ data class MainUiState(
     val micMuted: Boolean = false,
     val muteOnMediaButton: Boolean = true,
 
+    // Appearance
+    val themeMode: Int = 0,             // 0 = Auto (system), 1 = Dark, 2 = Light
+    val dynamicColorsEnabled: Boolean = true,
+
     // Status
     val serviceState: String = "--",
     val serviceStateColor: Long = 0xFF888888, // ARGB Long

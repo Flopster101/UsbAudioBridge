@@ -53,6 +53,8 @@ fun AppNavigation(
     onToggleSpeakerMute: () -> Unit,
     onToggleMicMute: () -> Unit,
     onMuteOnMediaButtonChange: (Boolean) -> Unit,
+    onThemeModeChange: (Int) -> Unit,
+    onDynamicColorsChange: (Boolean) -> Unit,
     onResetSettings: () -> Unit,
     onToggleLogs: () -> Unit
 ) {
@@ -147,6 +149,8 @@ fun AppNavigation(
                     onScreensaverDvdSpeedChange = onScreensaverDvdSpeedChange,
                     onScreensaverFullscreenChange = onScreensaverFullscreenChange,
                     onMuteOnMediaButtonChange = onMuteOnMediaButtonChange,
+                    onThemeModeChange = onThemeModeChange,
+                    onDynamicColorsChange = onDynamicColorsChange,
                     onResetSettings = onResetSettings
                 )
             }
