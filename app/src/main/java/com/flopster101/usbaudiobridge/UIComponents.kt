@@ -165,36 +165,6 @@ fun KernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
 }
 
 @Composable
-fun AboutLibraryRow(name: String, description: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            "•",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(16.dp)
-        )
-        Column {
-            Text(
-                name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 fun OldKernelNoticeDialog(onDismiss: (Boolean) -> Unit) {
     var dontShowAgain by remember { mutableStateOf(false) }
 

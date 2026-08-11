@@ -1,15 +1,20 @@
 package com.flopster101.usbaudiobridge
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -153,27 +158,63 @@ fun AboutScreen() {
             }
         }
 
-        // Libraries Used
+        // Dependencies
         item {
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        "Libraries & technologies",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Dependencies",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp)
+                )
 
-                    Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-                    AboutLibraryRow("TinyALSA", "Lightweight ALSA library for PCM capture")
-                    AboutLibraryRow("AAudio", "Android's high-performance audio API")
-                    AboutLibraryRow("OpenSL ES", "Cross-platform audio API for embedded systems")
-                    AboutLibraryRow("AudioTrack", "Android's legacy audio playback API")
-                    AboutLibraryRow("Linux USB Gadget", "Kernel subsystem for USB device emulation")
+                // Open Source Libraries
+                ElevatedCard(
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        Text(
+                            "Open source libraries",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                        HorizontalDivider()
+                        OpenSourceLibraryRow(
+                            name = "TinyALSA",
+                            description = "Lightweight ALSA library used for low-level PCM capture.",
+                            license = "BSD-3-Clause",
+                            url = "https://github.com/tinyalsa/tinyalsa"
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Framework & Engine
+                ElevatedCard(
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        Text(
+                            "Framework & engine",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                        FrameworkRow("AAudio", "Android's high-performance native audio API.")
+                        HorizontalDivider()
+                        FrameworkRow("OpenSL ES", "Cross-platform audio API for embedded systems.")
+                        HorizontalDivider()
+                        FrameworkRow("AudioTrack", "Android's Java audio playback API.")
+                        HorizontalDivider()
+                        FrameworkRow("Linux USB Gadget", "Linux kernel subsystem for USB device emulation.")
+                    }
                 }
             }
         }
@@ -194,4 +235,66 @@ fun AboutScreen() {
             )
         }
     }
+}
+
+@Composable
+private fun OpenSourceLibraryRow(name: String, description: String, license: String, url: String) {
+    val context = LocalContext.current
+    ListItem(
+        headlineContent = { Text(name, style = MaterialTheme.typography.titleMedium) },
+        supportingContent = {
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(percent = 50),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    tonalElevation = 0.dp
+                ) {
+                    Text(
+                        text = license,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                IconButton(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = "$name repository",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
+}
+
+@Composable
+private fun FrameworkRow(name: String, description: String) {
+    ListItem(
+        headlineContent = { Text(name, style = MaterialTheme.typography.titleMedium) },
+        supportingContent = {
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
