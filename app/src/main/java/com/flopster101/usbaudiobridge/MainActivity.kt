@@ -21,6 +21,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -377,13 +381,18 @@ class MainActivity : ComponentActivity() {
                 2 -> false
                 else -> systemInDark
             }
-            val colorScheme = when {
-                uiState.dynamicColorsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                    if (useDark) dynamicDarkColorScheme(LocalContext.current) else dynamicLightColorScheme(LocalContext.current)
-                useDark -> darkColorScheme()
-                else -> lightColorScheme()
+            val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val dynamicDark  = dynamicDarkColorScheme(LocalContext.current)
+                val dynamicLight = dynamicLightColorScheme(LocalContext.current)
+                if (uiState.dynamicColorsEnabled) {
+                    if (useDark) dynamicDark else dynamicLight
+                } else {
+                    if (useDark) darkColorScheme() else lightColorScheme()
+                }
+            } else {
+                if (useDark) darkColorScheme() else lightColorScheme()
             }
-            MaterialTheme(colorScheme = colorScheme) {
+            MaterialTheme(colorScheme = animateColorScheme(colorScheme)) {
                 when (isRootGranted) {
                     null -> {
                         Box(
@@ -744,4 +753,56 @@ class MainActivity : ComponentActivity() {
              uiState.micSourceOption
         )
     }
+}
+
+/**
+ * Returns a [ColorScheme] where every color is individually animated toward [target].
+ * This produces a smooth whole-theme transition rather than an instant snap
+ * when the theme mode or dynamic colors setting changes.
+ */
+@Composable
+fun animateColorScheme(
+    target: ColorScheme,
+    durationMs: Int = 400
+): ColorScheme {
+    val spec = tween<Color>(durationMillis = durationMs, easing = FastOutSlowInEasing)
+    @Composable fun Color.anim() = animateColorAsState(this, spec).value
+    return ColorScheme(
+        primary                  = target.primary.anim(),
+        onPrimary                = target.onPrimary.anim(),
+        primaryContainer         = target.primaryContainer.anim(),
+        onPrimaryContainer       = target.onPrimaryContainer.anim(),
+        inversePrimary           = target.inversePrimary.anim(),
+        secondary                = target.secondary.anim(),
+        onSecondary              = target.onSecondary.anim(),
+        secondaryContainer       = target.secondaryContainer.anim(),
+        onSecondaryContainer     = target.onSecondaryContainer.anim(),
+        tertiary                 = target.tertiary.anim(),
+        onTertiary               = target.onTertiary.anim(),
+        tertiaryContainer        = target.tertiaryContainer.anim(),
+        onTertiaryContainer      = target.onTertiaryContainer.anim(),
+        background               = target.background.anim(),
+        onBackground             = target.onBackground.anim(),
+        surface                  = target.surface.anim(),
+        onSurface                = target.onSurface.anim(),
+        surfaceVariant           = target.surfaceVariant.anim(),
+        onSurfaceVariant         = target.onSurfaceVariant.anim(),
+        surfaceTint              = target.surfaceTint.anim(),
+        inverseSurface           = target.inverseSurface.anim(),
+        inverseOnSurface         = target.inverseOnSurface.anim(),
+        error                    = target.error.anim(),
+        onError                  = target.onError.anim(),
+        errorContainer           = target.errorContainer.anim(),
+        onErrorContainer         = target.onErrorContainer.anim(),
+        outline                  = target.outline.anim(),
+        outlineVariant           = target.outlineVariant.anim(),
+        scrim                    = target.scrim.anim(),
+        surfaceBright            = target.surfaceBright.anim(),
+        surfaceDim               = target.surfaceDim.anim(),
+        surfaceContainer         = target.surfaceContainer.anim(),
+        surfaceContainerHigh     = target.surfaceContainerHigh.anim(),
+        surfaceContainerHighest  = target.surfaceContainerHighest.anim(),
+        surfaceContainerLow      = target.surfaceContainerLow.anim(),
+        surfaceContainerLowest   = target.surfaceContainerLowest.anim(),
+    )
 }
