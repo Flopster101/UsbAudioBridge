@@ -810,5 +810,17 @@ fun animateColorScheme(
         surfaceContainerHighest  = target.surfaceContainerHighest.anim(),
         surfaceContainerLow      = target.surfaceContainerLow.anim(),
         surfaceContainerLowest   = target.surfaceContainerLowest.anim(),
+        primaryFixed            = target.primaryFixed.anim(),
+        primaryFixedDim         = target.primaryFixedDim.anim(),
+        onPrimaryFixed          = target.onPrimaryFixed.anim(),
+        onPrimaryFixedVariant   = target.onPrimaryFixedVariant.anim(),
+        secondaryFixed          = target.secondaryFixed.anim(),
+        secondaryFixedDim       = target.secondaryFixedDim.anim(),
+        onSecondaryFixed        = target.onSecondaryFixed.anim(),
+        onSecondaryFixedVariant = target.onSecondaryFixedVariant.anim(),
+        tertiaryFixed           = target.tertiaryFixed.anim(),
+        tertiaryFixedDim        = target.tertiaryFixedDim.anim(),
+        onTertiaryFixed         = target.onTertiaryFixed.anim(),
+        onTertiaryFixedVariant  = target.onTertiaryFixedVariant.anim(),
     )
 }
