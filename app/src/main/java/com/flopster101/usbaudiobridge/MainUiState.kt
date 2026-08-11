@@ -68,7 +68,6 @@ fun MainUiState.getGadgetStatusLabel(): String {
     if (isGadgetPending) {
         return if (lastGadgetActionWasEnable) "Enabling..." else "Disabling..."
     }
-    gadgetStatusError?.let { return "Error: $it" }
     if (!isGadgetEnabled) return "Disabled"
 
     val active = activeFunctions.lowercase()
@@ -83,7 +82,6 @@ fun MainUiState.getGadgetStatusLabel(): String {
 fun MainUiState.getGadgetStatusColor(): Long {
     return when {
         isGadgetPending -> 0xFFFFC107
-        gadgetStatusError != null -> 0xFFF44336
         isGadgetEnabled -> 0xFF4CAF50
         else -> 0xFF888888
     }
