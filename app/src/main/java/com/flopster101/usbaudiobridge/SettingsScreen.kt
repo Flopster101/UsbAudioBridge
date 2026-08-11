@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -85,33 +86,33 @@ fun SettingsScreen(
                             "Maximum (200ms)"
                         )
 
-                        Column(
-                            modifier = Modifier
-                                .clickable { showLatencyDialog = true }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                             ) {
-                                 Column(modifier = Modifier.weight(1f)) {
-                                     Text("Target latency", style = MaterialTheme.typography.bodyLarge)
-                                     Spacer(Modifier.height(4.dp))
-                                      Text(
+                        ListItem(
+                            headlineContent = { Text("Target latency") },
+                            supportingContent = {
+                                Column {
+                                    Text(
                                         text = labels.getOrElse(state.latencyPreset) { "Unknown" },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.primary
                                     )
-                                 }
-                                 Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                             }
-                             Spacer(Modifier.height(8.dp))
-                             Text(
-                                text = "Lower latency can require a more powerful device and a stable USB connection. Increase if audio crackles.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = "Lower latency can require a more powerful device and a stable USB connection. Increase if audio crackles.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            modifier = Modifier.clickable { showLatencyDialog = true },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
 
                         if (showLatencyDialog) {
                             SelectionDialog(
@@ -168,24 +169,17 @@ fun SettingsScreen(
                     HorizontalDivider()
 
                     // Advanced Toggle Footer
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onBufferModeChange(if (state.bufferMode == 0) 1 else 0) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Advanced configuration",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Switch(
-                            checked = state.bufferMode == 1,
-                            onCheckedChange = { onBufferModeChange(if (it) 1 else 0) }
-                        )
-                    }
+                    ListItem(
+                        headlineContent = { Text("Advanced configuration") },
+                        trailingContent = {
+                            Switch(
+                                checked = state.bufferMode == 1,
+                                onCheckedChange = { onBufferModeChange(if (it) 1 else 0) }
+                            )
+                        },
+                        modifier = Modifier.clickable { onBufferModeChange(if (state.bufferMode == 0) 1 else 0) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
                 }
             }
         }
@@ -246,33 +240,33 @@ fun SettingsScreen(
             val options = listOf(6, 1, 5, 7, 9, 10)
             val labels = listOf("Auto (voice rec)", "Mic", "Camcorder", "Voice comm", "Unprocessed", "Performance")
 
-            GroupedSettingsCard(
-                position = SettingsGroupPosition.Middle,
-                modifier = Modifier.fillMaxWidth().clickable { showMicDialog = true }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Microphone source", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
+            GroupedSettingsCard(position = SettingsGroupPosition.Middle) {
+                val index = options.indexOf(state.micSourceOption)
+                val label = if (index >= 0) labels[index] else "Unknown"
+                ListItem(
+                    headlineContent = { Text("Microphone source", style = MaterialTheme.typography.titleMedium) },
+                    supportingContent = {
                         Text(
                             text = "Select input preset. Affects processing (echo cancellation, noise suppression).",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-
-                    val index = options.indexOf(state.micSourceOption)
-                    val label = if (index >= 0) labels[index] else "Unknown"
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                }
+                    },
+                    trailingContent = {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Select",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    modifier = Modifier.clickable { showMicDialog = true },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
 
             if (showMicDialog) {
@@ -297,31 +291,31 @@ fun SettingsScreen(
             val rates = listOf(22050, 32000, 44100, 48000, 88200, 96000, 192000)
             val labels = rates.map { "$it Hz" }
 
-            GroupedSettingsCard(
-                position = SettingsGroupPosition.Middle,
-                modifier = Modifier.fillMaxWidth().clickable { showSampleRateDialog = true }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Sample rate", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
+            GroupedSettingsCard(position = SettingsGroupPosition.Middle) {
+                ListItem(
+                    headlineContent = { Text("Sample rate", style = MaterialTheme.typography.titleMedium) },
+                    supportingContent = {
                         Text(
                             text = "48kHz is standard for Android. Higher rates increase CPU load and may require larger buffers.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-
-                    Text(
-                        text = "${state.sampleRateOption} Hz",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                }
+                    },
+                    trailingContent = {
+                        Text(
+                            text = "${state.sampleRateOption} Hz",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Select",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    modifier = Modifier.clickable { showSampleRateDialog = true },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
 
             if (showSampleRateDialog) {
@@ -416,32 +410,34 @@ fun SettingsScreen(
             val labels = listOf("Auto", "4096", "2048", "1024", "960", "512", "480", "360", "256", "240", "192", "128", "120", "96", "64")
 
             GroupedSettingsCard(
-                position = SettingsGroupPosition.Bottom,
-                modifier = Modifier.fillMaxWidth().clickable { showPeriodDialog = true }
+                position = SettingsGroupPosition.Bottom
             ) {
-                 Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Period size (frames)", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
+                val index = options.indexOf(state.periodSizeOption)
+                val label = if (index >= 0) labels[index] else state.periodSizeOption.toString()
+                ListItem(
+                    headlineContent = { Text("Period size (frames)", style = MaterialTheme.typography.titleMedium) },
+                    supportingContent = {
                         Text(
                             text = "Controls capture latency and CPU load.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-
-                    val index = options.indexOf(state.periodSizeOption)
-                    val label = if (index >= 0) labels[index] else state.periodSizeOption.toString()
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                }
+                    },
+                    trailingContent = {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Select",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    modifier = Modifier.clickable { showPeriodDialog = true },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
 
             if (showPeriodDialog) {
@@ -511,31 +507,23 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
-                Column(modifier = Modifier.padding(16.dp)) {
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Keep ADB enabled",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Forces ADB to remain active (Composite Gadget). May not work on some devices..",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = { Text("Keep ADB enabled") },
+                    supportingContent = {
+                        Text(
+                            text = "Forces ADB to remain active (Composite Gadget). May not work on some devices..",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.keepAdbOption,
                             onCheckedChange = onKeepAdbChange
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
@@ -548,61 +536,46 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Top) {
-                Column(modifier = Modifier.padding(16.dp)) {
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Always continue on output change",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Keep playing when any output change occurs, including when headphones or Bluetooth are disconnected. When disabled, behaves like music apps (stops on disconnect).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = { Text("Always continue on output change") },
+                    supportingContent = {
+                        Text(
+                            text = "Keep playing when any output change occurs, including when headphones or Bluetooth are disconnected. When disabled, behaves like music apps (stops on disconnect).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.autoRestartOnOutputChange,
                             onCheckedChange = onAutoRestartChange
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
         item { Spacer(Modifier.height(2.dp)) }
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Control via Headset buttons",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Use headset/Bluetooth Play/Pause buttons to mute/unmute the speaker bridge.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = { Text("Control via Headset buttons") },
+                    supportingContent = {
+                        Text(
+                            text = "Use headset/Bluetooth Play/Pause buttons to mute/unmute the speaker bridge.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.muteOnMediaButton,
                             onCheckedChange = onMuteOnMediaButtonChange
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
@@ -615,31 +588,23 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Standalone) {
-                Column(modifier = Modifier.padding(16.dp)) {
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Enable interactive notification",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Enable persistent status notification with controls.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = { Text("Enable interactive notification") },
+                    supportingContent = {
+                        Text(
+                            text = "Enable persistent status notification with controls.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.notificationEnabled,
                             onCheckedChange = onNotificationEnabledChange
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
@@ -652,31 +617,23 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Top) {
-                Column(modifier = Modifier.padding(16.dp)) {
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Keep screen on",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Prevent the screen from turning off while the app is open. Might be useful if audio lags when screen is off.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = { Text("Keep screen on") },
+                    supportingContent = {
+                        Text(
+                            text = "Prevent the screen from turning off while the app is open. Might be useful if audio lags when screen is off.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.keepScreenOnOption,
                             onCheckedChange = onKeepScreenOnChange
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
         item { Spacer(Modifier.height(2.dp)) }
@@ -684,37 +641,34 @@ fun SettingsScreen(
         // Screensaver
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Enable screensaver",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                    ListItem(
+                        headlineContent = { Text("Enable screensaver") },
+                        supportingContent = {
                             Text(
                                 text = "Show a screensaver to prevent burn-in on OLED displays and image retention on LCDs. Only available when 'Keep screen on' is enabled.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-                        Spacer(Modifier.width(16.dp))
-                        Switch(
-                            checked = state.screensaverEnabled,
-                            onCheckedChange = onScreensaverEnabledChange,
-                            enabled = state.keepScreenOnOption
-                        )
-                    }
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = state.screensaverEnabled,
+                                onCheckedChange = onScreensaverEnabledChange,
+                                enabled = state.keepScreenOnOption
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
 
                     if (state.screensaverEnabled && state.keepScreenOnOption) {
-                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -733,36 +687,33 @@ fun SettingsScreen(
                             )
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "DVD bounce mode",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                        ListItem(
+                            headlineContent = { Text("DVD bounce mode", style = MaterialTheme.typography.bodyLarge) },
+                            supportingContent = {
                                 Text(
                                     text = "Glides diagonally and bounces off screen edges.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Switch(
-                                checked = state.screensaverDvdMode,
-                                onCheckedChange = onScreensaverDvdModeChange
-                            )
-                        }
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = state.screensaverDvdMode,
+                                    onCheckedChange = onScreensaverDvdModeChange
+                                )
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
 
                         if (state.screensaverDvdMode) {
-                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -786,10 +737,12 @@ fun SettingsScreen(
                         }
 
                         if (!state.screensaverDvdMode) {
-                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -809,30 +762,25 @@ fun SettingsScreen(
                             }
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Fullscreen mode",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                        ListItem(
+                            headlineContent = { Text("Fullscreen mode", style = MaterialTheme.typography.bodyLarge) },
+                            supportingContent = {
                                 Text(
                                     text = "Hide system UI elements when screensaver is active",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Switch(
-                                checked = state.screensaverFullscreen,
-                                onCheckedChange = onScreensaverFullscreenChange
-                            )
-                        }
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = state.screensaverFullscreen,
+                                    onCheckedChange = onScreensaverFullscreenChange
+                                )
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
                     }
                 }
             }
@@ -893,37 +841,36 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Dynamic colors",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
-                                    MaterialTheme.colorScheme.onSurface
-                                else
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                            Text(
-                                text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
-                                    "Use colors derived from your wallpaper (Material You)."
-                                else
-                                    "Requires Android 12 or later.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = "Dynamic colors",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                                MaterialTheme.colorScheme.onSurface
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                                "Use colors derived from your wallpaper (Material You)."
+                            else
+                                "Requires Android 12 or later.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
                         Switch(
                             checked = state.dynamicColorsEnabled,
                             onCheckedChange = onDynamicColorsChange,
                             enabled = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
                         )
-                    }
-                }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
         }
 

@@ -232,17 +232,15 @@ fun HomeScreen(
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        StatusRow("Gadget", state.getGadgetStatusLabel(), Color(state.getGadgetStatusColor()))
-                        Spacer(Modifier.height(8.dp))
-                        StatusRow("State", state.serviceState, Color(state.serviceStateColor))
-                        Spacer(Modifier.height(8.dp))
-                        StatusRow("Sample rate", state.sampleRate)
-                        Spacer(Modifier.height(8.dp))
-                        StatusRow("Period size", state.periodSize)
-                        Spacer(Modifier.height(8.dp))
-                        StatusRow("Current buffer", state.currentBuffer)
-                    }
+                    StatusRow("Gadget", state.getGadgetStatusLabel(), Color(state.getGadgetStatusColor()))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    StatusRow("State", state.serviceState, Color(state.serviceStateColor))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    StatusRow("Sample rate", state.sampleRate)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    StatusRow("Period size", state.periodSize)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    StatusRow("Current buffer", state.currentBuffer)
                 }
             }
 
@@ -262,11 +260,9 @@ fun HomeScreen(
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        StatusRow("Controller", state.udcController)
-                        Spacer(Modifier.height(8.dp))
-                        StatusRow("Active functions", state.activeFunctions)
-                    }
+                    StatusRow("Controller", state.udcController)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    StatusRow("Active functions", state.activeFunctions)
                 }
             }
 
