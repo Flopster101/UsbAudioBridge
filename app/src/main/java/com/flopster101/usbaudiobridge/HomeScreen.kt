@@ -85,103 +85,95 @@ fun HomeScreen(
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        FilledTonalButton(
-                            onClick = { onToggleGadget(!state.isGadgetEnabled) },
-                            enabled = !state.isGadgetPending,
-                            modifier = Modifier.fillMaxWidth().height(60.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = heroContainer,
-                                contentColor = heroContent
-                            )
+                    Column(modifier = Modifier.padding(vertical = 24.dp)) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            val isPending = state.isGadgetPending
-                            val label = when {
-                                isPending && state.lastGadgetActionWasEnable -> "Enabling..."
-                                isPending -> "Disabling..."
-                                state.isGadgetEnabled -> "Disable USB Gadget"
-                                else -> "Enable USB Gadget"
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            FilledTonalButton(
+                                onClick = { onToggleGadget(!state.isGadgetEnabled) },
+                                enabled = !state.isGadgetPending,
+                                modifier = Modifier.fillMaxWidth().height(60.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = heroContainer,
+                                    contentColor = heroContent
+                                )
                             ) {
-                                if (isPending) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                } else {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_usb),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
+                                val isPending = state.isGadgetPending
+                                val label = when {
+                                    isPending && state.lastGadgetActionWasEnable -> "Enabling..."
+                                    isPending -> "Disabling..."
+                                    state.isGadgetEnabled -> "Disable USB Gadget"
+                                    else -> "Enable USB Gadget"
                                 }
-                                Text(label, style = MaterialTheme.typography.titleMedium)
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (isPending) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                    } else {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_usb),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                    }
+                                    Text(label, style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = onToggleCapture,
+                                enabled = state.isGadgetEnabled && !state.isCapturePending,
+                                modifier = Modifier.fillMaxWidth().height(56.dp)
+                            ) {
+                                val buttonText = when {
+                                    state.isCapturePending -> if (state.isServiceRunning) "Stopping..." else "Starting..."
+                                    state.isServiceRunning -> "Stop Audio Capture"
+                                    else -> "Start Audio Capture"
+                                }
+                                Text(buttonText)
                             }
                         }
+
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider()
                         Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = onToggleCapture,
-                            enabled = state.isGadgetEnabled && !state.isCapturePending,
-                            modifier = Modifier.fillMaxWidth().height(56.dp)
-                        ) {
-                            val buttonText = when {
-                                state.isCapturePending -> if (state.isServiceRunning) "Stopping..." else "Starting..."
-                                state.isServiceRunning -> "Stop Audio Capture"
-                                else -> "Start Audio Capture"
-                            }
-                            Text(buttonText)
-                        }
-                    }
-                }
-            }
 
-            // Card 1.5: Audio Devices
-            item {
-                Text(
-                    text = "Audio devices",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
-                )
-
-                ElevatedCard(
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    shape = RoundedCornerShape(28.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
                         // Active bridges row
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.padding(top = 2.dp)) {
                                 Text(
                                     text = "Active bridges",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 if (state.isServiceRunning && ((state.runningDirections and 1) != 0 || (state.runningDirections and 2) != 0)) {
                                     Text(
                                         text = "Tap icons to mute/unmute",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 4.dp)
+                                        modifier = Modifier.padding(top = 2.dp)
                                     )
                                 }
                             }
                             if (!state.isServiceRunning) {
                                 Text(
                                     text = "--",
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -195,7 +187,7 @@ fun HomeScreen(
                                             contentDescription = if (state.speakerMuted) "Unmute Speaker" else "Mute Speaker",
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
-                                                .size(24.dp)
+                                                .size(20.dp)
                                                 .clickable { onToggleSpeakerMute() }
                                         )
                                     }
@@ -205,7 +197,7 @@ fun HomeScreen(
                                             contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
-                                                .size(24.dp)
+                                                .size(20.dp)
                                                 .clickable { onToggleMicMute() }
                                         )
                                     }
@@ -214,29 +206,41 @@ fun HomeScreen(
                         }
 
                         Spacer(Modifier.height(12.dp))
+
                         // Playback device row, icon aligned right
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Playback device:",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = "Playback device",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
-                            Spacer(Modifier.weight(1f))
-                            val iconRes = when (state.playbackDeviceType) {
-                                PlaybackDeviceType.BLUETOOTH -> R.drawable.ic_playback_bluetooth
-                                PlaybackDeviceType.HEADPHONES -> R.drawable.ic_playback_headphones
-                                PlaybackDeviceType.SPEAKER -> R.drawable.ic_playback_speaker
-                                else -> null
-                            }
-                            if (iconRes != null) {
-                                Icon(
-                                    painter = painterResource(iconRes),
-                                    contentDescription = state.playbackDeviceType.name,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                val iconRes = when (state.playbackDeviceType) {
+                                    PlaybackDeviceType.BLUETOOTH -> R.drawable.ic_playback_bluetooth
+                                    PlaybackDeviceType.HEADPHONES -> R.drawable.ic_playback_headphones
+                                    PlaybackDeviceType.SPEAKER -> R.drawable.ic_playback_speaker
+                                    else -> null
+                                }
+                                if (iconRes != null) {
+                                    Icon(
+                                        painter = painterResource(iconRes),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Text(
+                                    text = state.playbackDeviceType.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
