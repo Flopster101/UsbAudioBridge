@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -61,6 +62,22 @@ fun HomeScreen(
         ) {
             // Card 1: Main Controls
             item {
+                val heroContainer by animateColorAsState(
+                    targetValue = if (state.isGadgetEnabled) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    label = "heroContainer"
+                )
+                val heroContent by animateColorAsState(
+                    targetValue = if (state.isGadgetEnabled) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onPrimary
+                    },
+                    label = "heroContent"
+                )
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -75,7 +92,11 @@ fun HomeScreen(
                         FilledTonalButton(
                             onClick = { onToggleGadget(!state.isGadgetEnabled) },
                             enabled = !state.isGadgetPending,
-                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                            modifier = Modifier.fillMaxWidth().height(60.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = heroContainer,
+                                contentColor = heroContent
+                            )
                         ) {
                             val isPending = state.isGadgetPending
                             val label = when {
@@ -95,8 +116,15 @@ fun HomeScreen(
                                         strokeWidth = 2.dp
                                     )
                                     Spacer(Modifier.width(10.dp))
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_usb),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
                                 }
-                                Text(label)
+                                Text(label, style = MaterialTheme.typography.titleMedium)
                             }
                         }
                         Spacer(Modifier.height(12.dp))
