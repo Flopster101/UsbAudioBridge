@@ -283,7 +283,7 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                        .padding(start = 16.dp, end = 24.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -315,7 +315,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Row(
@@ -349,7 +349,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onToggleLogs() }
-                        .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                        .padding(start = 16.dp, end = 24.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
