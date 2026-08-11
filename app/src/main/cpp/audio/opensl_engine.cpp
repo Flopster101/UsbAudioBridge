@@ -69,6 +69,7 @@ bool OpenSLEngine::open(int rate, int channelCount) {
 }
 
 void OpenSLEngine::start() {
+    stopped.store(false);
     if (playerPlay) (*playerPlay)->SetPlayState(playerPlay, SL_PLAYSTATE_PLAYING);
 }
 
@@ -76,23 +77,18 @@ void OpenSLEngine::write(const uint8_t* data, size_t sizeBytes) {
     if (!playerBufferQueue) return;
 
     // Wait for a queue slot; do not enqueue blindly when the queue is full.
-    bool ready = false;
-    for (int i = 0; i < 3 && !ready; ++i) {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        ready = queueCv.wait_for(lock, std::chrono::milliseconds(20),
-                                 [this] { return availableSlots > 0; });
-        if (ready) {
-            availableSlots--;
-        }
-    }
-
-    if (!ready) {
+    // Cancel only when the player is explicitly stopped.
+    std::unique_lock<std::mutex> lock(queueMutex);
+    if (!queueCv.wait_for(lock, std::chrono::milliseconds(100),
+                          [this] { return stopped.load() || availableSlots > 0; })) {
         static int waitTimeoutLogCount = 0;
         if ((waitTimeoutLogCount++ % 50) == 0) {
             LOGE("[Native] OpenSL queue wait timeout");
         }
         return;
     }
+    if (stopped.load()) return;
+    availableSlots--;
 
     SLresult result = (*playerBufferQueue)->Enqueue(playerBufferQueue, data, sizeBytes);
     if (result != SL_RESULT_SUCCESS) {
@@ -100,7 +96,6 @@ void OpenSLEngine::write(const uint8_t* data, size_t sizeBytes) {
         if ((enqueueErrorLogCount++ % 50) == 0) {
             LOGE("[Native] OpenSL enqueue failed: %d", result);
         }
-        std::lock_guard<std::mutex> lock(queueMutex);
         if (availableSlots < kQueueDepth) {
             availableSlots++;
         }
@@ -114,6 +109,7 @@ void OpenSLEngine::stop() {
         std::lock_guard<std::mutex> lock(queueMutex);
         availableSlots = kQueueDepth;
     }
+    stopped.store(true);
     queueCv.notify_all();
 }
 

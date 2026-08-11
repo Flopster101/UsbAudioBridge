@@ -153,6 +153,13 @@ void captureLoop(unsigned int card, unsigned int device, RingBuffer *rb,
     int res = pcm_read(pcm, local_buf.data(), chunk_bytes);
     if (res == 0) {
       size_t written = rb->write(local_buf.data(), chunk_bytes);
+      // Stall the capture briefly and retry instead of dropping the frames
+      // (dropped audio is audible) - the consumer is only backed up because
+      // the output still has data to play, so we can wait.
+      for (int it = 0; written < chunk_bytes && it < 40 && isRunning; ++it) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        written += rb->write(local_buf.data() + written, chunk_bytes - written);
+      }
       if (written < chunk_bytes) {
         size_t dropped = chunk_bytes - written;
         if (overrunCount++ % 50 == 0) {
@@ -247,6 +254,8 @@ void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
   size_t buffer_bytes = pcm_frames_to_bytes(pcm, config.period_size);
   std::vector<uint8_t> buffer(buffer_bytes);
 
+  // Throttle the log when the host has not opened its capture endpoint.
+  int writeErrorCount = 0;
   LOGD("[Native] Mic -> Gadget streaming active.");
 
   while (isRunning) {
@@ -257,9 +266,11 @@ void playbackLoop(unsigned int card, unsigned int device, int sampleRate,
       }
       int err = pcm_write(pcm, buffer.data(), readBytes);
       if (err) {
-        LOGE("[Native] PCM Write Error: %s", pcm_get_error(pcm));
-        // Attempt recovery? or just continue?
-        // pcm_prepare(pcm); // might help?
+        if (++writeErrorCount == 1 || writeErrorCount % 50 == 0) {
+          LOGE("[Native] PCM Write Error: %s", pcm_get_error(pcm));
+        }
+      } else {
+        writeErrorCount = 0;
       }
     } else {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -386,30 +397,21 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   const char *backendName = "AAudio";
   int32_t minTargetFrames = 120;
   int32_t maxTargetFrames = 480;
-  size_t lowWaterDivisor = 4;
-  size_t highWaterDivisor = 2;
   int emptySleepUs = 500;
   if (engineType == 1) {
     backendName = "OpenSL";
     minTargetFrames = 96;
     maxTargetFrames = 192;
-    lowWaterDivisor = 3;
-    highWaterDivisor = 2;
     emptySleepUs = 500;
   } else if (engineType == 2) {
     backendName = "AudioTrack";
     minTargetFrames = 120;
     maxTargetFrames = 480;
-    lowWaterDivisor = 3;
-    highWaterDivisor = 2;
     emptySleepUs = 400;
   } else {
     backendName = "AAudio";
     minTargetFrames = 96;
     maxTargetFrames = 240;
-    // Wider hysteresis for AAudio to avoid rapid normal/reduced oscillation.
-    lowWaterDivisor = 8;
-    highWaterDivisor = 2;
     emptySleepUs = 250;
   }
 
@@ -445,74 +447,37 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   if (reducedChunkFrames > chunkFrames) {
     reducedChunkFrames = chunkFrames;
   }
+  // Continuous fill-based chunk steering instead of a fixed latch. Target ~50%
+  // of ring capacity for symmetric headroom between host bursts and hiccups.
+  size_t targetFillBytes = rb.capacity() / 2;
   size_t reducedChunkBytes = reducedChunkFrames * bytes_per_frame;
-  size_t lowWaterBytes =
-      std::max(chunkBytes, rb.capacity() / std::max<size_t>(1, lowWaterDivisor));
-  if (lowWaterBytes > rb.capacity()) {
-    lowWaterBytes = rb.capacity();
-  }
-  size_t highWaterBytes =
-      std::max(lowWaterBytes + reducedChunkBytes,
-               rb.capacity() / std::max<size_t>(1, highWaterDivisor));
-  size_t minHysteresisBytes = std::max(chunkBytes, reducedChunkBytes * 3);
-  if (highWaterBytes < lowWaterBytes + minHysteresisBytes) {
-    highWaterBytes = lowWaterBytes + minHysteresisBytes;
-  }
-  if (highWaterBytes > rb.capacity()) {
-    highWaterBytes = rb.capacity();
-  }
-  if (highWaterBytes <= lowWaterBytes) {
-    if (lowWaterBytes > reducedChunkBytes) {
-      lowWaterBytes -= reducedChunkBytes;
-    } else {
-      lowWaterBytes = rb.capacity() / 2;
-    }
-    highWaterBytes = rb.capacity();
-  }
-  bool useReducedChunk = false;
-  LOGD("[Native] %s chunk strategy: normal=%d, reduced=%d, watermarks=%zu/%zu bytes, "
+
+  LOGD("[Native] %s chunk strategy: normal=%d, reduced=%d, targetFill=%zu bytes, "
        "emptySleep=%dus",
-       backendName, chunkFrames, reducedChunkFrames, lowWaterBytes, highWaterBytes, emptySleepUs);
+       backendName, chunkFrames, reducedChunkFrames, targetFillBytes, emptySleepUs);
   std::vector<uint8_t> p_buf(chunkBytes);
 
   // Consume Loop
   int stats_counter = 0;
   bool isStreaming = true; // Initially true after pre-roll
   auto lastDataTime = std::chrono::steady_clock::now();
-  auto lastModeChangeTime = lastDataTime;
-  auto lastModeLogTime = lastDataTime - std::chrono::seconds(10);
-  auto minModeDwell =
-      std::chrono::milliseconds((engineType == 0) ? 120 : 80);
-  int modeSwitchCount = 0;
 
   while (isRunning) {
     auto now = std::chrono::steady_clock::now();
     size_t availableBeforeRead = rb.available();
-    bool canSwitchMode = (now - lastModeChangeTime) >= minModeDwell;
-    if (canSwitchMode && !useReducedChunk && availableBeforeRead < lowWaterBytes) {
-      useReducedChunk = true;
-      lastModeChangeTime = now;
-      modeSwitchCount++;
-      if ((now - lastModeLogTime) >= std::chrono::milliseconds(2000)) {
-        LOGD("[Native] Low ring fill (%zu bytes), switching to reduced chunk. "
-             "(switches=%d)",
-             availableBeforeRead, modeSwitchCount);
-        lastModeLogTime = now;
-      }
-    } else if (canSwitchMode && useReducedChunk &&
-               availableBeforeRead > highWaterBytes) {
-      useReducedChunk = false;
-      lastModeChangeTime = now;
-      modeSwitchCount++;
-      if ((now - lastModeLogTime) >= std::chrono::milliseconds(2000)) {
-        LOGD("[Native] Ring fill recovered (%zu bytes), restoring normal chunk. "
-             "(switches=%d)",
-             availableBeforeRead, modeSwitchCount);
-        lastModeLogTime = now;
-      }
-    }
 
-    size_t desiredChunkBytes = useReducedChunk ? reducedChunkBytes : chunkBytes;
+    // Blend chunk size between reduced (low fill) and normal (high fill).
+    double fillRatio = static_cast<double>(availableBeforeRead) /
+                       static_cast<double>(std::max<size_t>(1, targetFillBytes));
+    int32_t desiredChunkFrames = chunkFrames;
+    if (fillRatio < 1.0) {
+      desiredChunkFrames = chunkFrames -
+                           static_cast<int32_t>((chunkFrames - reducedChunkFrames) * (1.0 - fillRatio));
+    }
+    desiredChunkFrames = std::max(reducedChunkFrames,
+                                  std::min(desiredChunkFrames, chunkFrames));
+    size_t desiredChunkBytes = desiredChunkFrames * bytes_per_frame;
+
     size_t read_bytes = rb.read(p_buf.data(), desiredChunkBytes);
 
     if (read_bytes > 0) {

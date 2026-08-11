@@ -2,7 +2,9 @@
 
 #include <aaudio/AAudio.h>
 #include <algorithm>
+#include <chrono>
 #include <dlfcn.h>
+#include <thread>
 
 #include "../logging/logging.h"
 
@@ -83,6 +85,9 @@ void AAudioEngine::write(const uint8_t* data, size_t sizeBytes) {
     int timeoutStreak = 0;
 
     while (writtenFrames < totalFrames) {
+        if (disconnected.load()) {
+            return;
+        }
         const uint8_t* writePtr = data + (writtenFrames * 4);
         int32_t framesLeft = totalFrames - writtenFrames;
         int32_t maxWriteFrames = std::max<int32_t>(96, burstFrames * 2);
@@ -96,11 +101,10 @@ void AAudioEngine::write(const uint8_t* data, size_t sizeBytes) {
         }
 
         if (result == 0 || result == AAUDIO_ERROR_TIMEOUT) {
-            timeoutStreak++;
-            if (timeoutStreak >= 3) {
+            if (++timeoutStreak >= 100) {
                 static int timeoutLogCount = 0;
-                if ((timeoutLogCount++ % 50) == 0) {
-                    LOGE("[Native] AAudio short write timeout (%d/%d frames)",
+                if ((timeoutLogCount++ % 20) == 0) {
+                    LOGE("[Native] AAudio write stalled (%d/%d frames), giving up.",
                          writtenFrames, totalFrames);
                 }
                 break;

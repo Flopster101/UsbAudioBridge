@@ -6,6 +6,7 @@
 
 #include <condition_variable>
 #include <cstdint>
+#include <atomic>
 #include <mutex>
 
 #include "audio_common.h"
@@ -22,6 +23,7 @@ class OpenSLEngine : public AudioEngine {
     std::condition_variable queueCv;
     static constexpr int kQueueDepth = 4;
     int availableSlots = kQueueDepth;
+    std::atomic<bool> stopped{false};
 
     static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context);
 
