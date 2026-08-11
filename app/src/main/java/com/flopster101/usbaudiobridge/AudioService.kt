@@ -104,6 +104,7 @@ class AudioService : Service() {
     // Called from C++ JNI
     fun writeAudioTrack(buffer: java.nio.ByteBuffer, size: Int) {
         val track = audioTrack ?: return
+        buffer.rewind()
         var remaining = size
         while (remaining > 0) {
             val written = track.write(buffer, remaining, android.media.AudioTrack.WRITE_BLOCKING)
