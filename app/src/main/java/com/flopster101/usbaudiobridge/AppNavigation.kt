@@ -64,11 +64,21 @@ fun AppNavigation(
 
     // Screensaver timer logic
     val screensaverEnabled = state.keepScreenOnOption && state.screensaverEnabled
+    // The screensaver is suppressed during busy states, and the timer resets when they finish.
+    val isBusy = state.isGadgetPending || state.isCapturePending
+    val isBusyState = rememberUpdatedState(isBusy)
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     // Reset timer on navigation
     LaunchedEffect(currentRoute) {
         lastInteractionTime = System.currentTimeMillis()
+    }
+
+    // Reset screensaver timer when a busy operation finishes
+    LaunchedEffect(isBusy) {
+        if (!isBusy) {
+            lastInteractionTime = System.currentTimeMillis()
+        }
     }
 
     val myNestedScrollConnection = remember(scrollBehavior.nestedScrollConnection) {
@@ -154,6 +164,8 @@ fun AppNavigation(
 
         while (true) {
             delay(1000) // Check every second
+            // Suppress activation while a gadget/capture operation is in progress.
+            if (isBusyState.value) continue
             val timeSinceLastInteraction = System.currentTimeMillis() - lastInteractionTime
             val shouldActivate = timeSinceLastInteraction >= (state.screensaverTimeout * 1000L)
 
