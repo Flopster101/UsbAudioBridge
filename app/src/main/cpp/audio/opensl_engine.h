@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <atomic>
 #include <mutex>
+#include <vector>
 
 #include "audio_common.h"
 
@@ -24,6 +25,10 @@ class OpenSLEngine : public AudioEngine {
     static constexpr int kQueueDepth = 4;
     int availableSlots = kQueueDepth;
     std::atomic<bool> stopped{false};
+    std::vector<std::vector<uint8_t>> buffers_{kQueueDepth};
+    std::vector<int64_t> enqueueSeq_{kQueueDepth, 0};
+    int64_t enqueueCount_ = 0;
+    int64_t completeCount_ = 0;
 
     static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context);
 

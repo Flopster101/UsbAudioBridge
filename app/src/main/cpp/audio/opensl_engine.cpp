@@ -1,5 +1,7 @@
 #include "opensl_engine.h"
 
+#include <cstring>
+
 #include "../logging/logging.h"
 
 void OpenSLEngine::bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context) {
@@ -8,6 +10,7 @@ void OpenSLEngine::bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* cont
     if (engine->availableSlots < kQueueDepth) {
         engine->availableSlots++;
     }
+    engine->completeCount_++;
     engine->queueCv.notify_one();
 }
 
@@ -74,28 +77,38 @@ void OpenSLEngine::start() {
 }
 
 void OpenSLEngine::write(const uint8_t* data, size_t sizeBytes) {
-    if (!playerBufferQueue) return;
+    if (!playerBufferQueue || sizeBytes < 4) return;
 
-    // Wait for a queue slot; do not enqueue blindly when the queue is full.
-    // Cancel only when the player is explicitly stopped.
     std::unique_lock<std::mutex> lock(queueMutex);
-    if (!queueCv.wait_for(lock, std::chrono::milliseconds(100),
-                          [this] { return stopped.load() || availableSlots > 0; })) {
-        static int waitTimeoutLogCount = 0;
-        if ((waitTimeoutLogCount++ % 50) == 0) {
-            LOGE("[Native] OpenSL queue wait timeout");
-        }
-        return;
-    }
+    queueCv.wait(lock, [this] { return stopped.load() || availableSlots > 0; });
     if (stopped.load()) return;
     availableSlots--;
 
-    SLresult result = (*playerBufferQueue)->Enqueue(playerBufferQueue, data, sizeBytes);
+    int slot = -1;
+    for (int i = 0; i < kQueueDepth; i++) {
+        if (enqueueSeq_[i] <= completeCount_) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0) {
+        slot = 0;
+    }
+
+    if (buffers_[slot].size() < sizeBytes) {
+        buffers_[slot].resize(sizeBytes);
+    }
+    std::memcpy(buffers_[slot].data(), data, sizeBytes);
+    enqueueSeq_[slot] = ++enqueueCount_;
+
+    SLresult result = (*playerBufferQueue)->Enqueue(playerBufferQueue, buffers_[slot].data(),
+                                                    sizeBytes);
     if (result != SL_RESULT_SUCCESS) {
         static int enqueueErrorLogCount = 0;
         if ((enqueueErrorLogCount++ % 50) == 0) {
             LOGE("[Native] OpenSL enqueue failed: %d", result);
         }
+        enqueueSeq_[slot] = 0;
         if (availableSlots < kQueueDepth) {
             availableSlots++;
         }
@@ -108,6 +121,7 @@ void OpenSLEngine::stop() {
     {
         std::lock_guard<std::mutex> lock(queueMutex);
         availableSlots = kQueueDepth;
+        completeCount_ = enqueueCount_;
     }
     stopped.store(true);
     queueCv.notify_all();
