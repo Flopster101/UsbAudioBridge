@@ -1,3 +1,6 @@
 [submodule "app/src/main/cpp/tinyalsa"]
 	path = app/src/main/cpp/tinyalsa
 	url = https://github.com/tinyalsa/tinyalsa.git
+[submodule "app/src/main/cpp/oboe"]
+	path = app/src/main/cpp/oboe
+	url = https://github.com/google/oboe.git
