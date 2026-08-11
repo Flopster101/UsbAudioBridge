@@ -1,14 +1,11 @@
 package com.flopster101.usbaudiobridge
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -198,36 +195,31 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MultiChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         val isSpeaker = (state.activeDirectionsOption and 1) != 0
                         val isMic = (state.activeDirectionsOption and 2) != 0
 
-                        FilterChip(
-                            selected = isSpeaker,
-                            onClick = {
-                                val newMask = if (isSpeaker) state.activeDirectionsOption and 1.inv() else state.activeDirectionsOption or 1
-                                // Prevent disabling both? User said "enable/disable either as they please".
-                                // But having NO devices makes bridge useless. Let's allow it but maybe warn?
-                                // Or simply allow it (will just idle).
+                        SegmentedButton(
+                            checked = isSpeaker,
+                            onCheckedChange = {
+                                val newMask = if (it) state.activeDirectionsOption or 1 else state.activeDirectionsOption and 1.inv()
                                 onActiveDirectionsChange(newMask)
                             },
-                            label = { Text("Speaker (Output)") },
-                            leadingIcon = {
-                                if (isSpeaker) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) {
+                            Text("Speaker (Output)")
+                        }
 
-                        FilterChip(
-                            selected = isMic,
-                            onClick = {
-                                val newMask = if (isMic) state.activeDirectionsOption and 2.inv() else state.activeDirectionsOption or 2
+                        SegmentedButton(
+                            checked = isMic,
+                            onCheckedChange = {
+                                val newMask = if (it) state.activeDirectionsOption or 2 else state.activeDirectionsOption and 2.inv()
                                 onActiveDirectionsChange(newMask)
                             },
-                            label = { Text("Mic (Input)") },
-                            leadingIcon = {
-                                if (isMic) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) {
+                            Text("Mic (Input)")
+                        }
                     }
                 }
             }
@@ -365,25 +357,28 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
                             selected = state.engineTypeOption == 0,
                             onClick = { onEngineTypeChange(0) },
-                            label = { Text("AAudio") }
-                        )
-                        FilterChip(
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                        ) {
+                            Text("AAudio")
+                        }
+                        SegmentedButton(
                             selected = state.engineTypeOption == 1,
                             onClick = { onEngineTypeChange(1) },
-                            label = { Text("OpenSL ES") }
-                        )
-                        FilterChip(
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                        ) {
+                            Text("OpenSL ES")
+                        }
+                        SegmentedButton(
                             selected = state.engineTypeOption == 2,
                             onClick = { onEngineTypeChange(2) },
-                            label = { Text("AudioTrack") }
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                        ) {
+                            Text("AudioTrack")
+                        }
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -477,20 +472,21 @@ fun SettingsScreen(
 
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
                             selected = state.uacVersionOption == 2,
                             onClick = { onUacVersionChange(2) },
-                            label = { Text("UAC2") }
-                        )
-                        FilterChip(
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) {
+                            Text("UAC2")
+                        }
+                        SegmentedButton(
                             selected = state.uacVersionOption == 1,
                             onClick = { onUacVersionChange(1) },
-                            label = { Text("UAC1") }
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) {
+                            Text("UAC1")
+                        }
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -805,34 +801,28 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
                             selected = state.themeMode == 0,
                             onClick = { onThemeModeChange(0) },
-                            label = { Text("Auto") },
-                            leadingIcon = {
-                                if (state.themeMode == 0) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        )
-                        FilterChip(
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                        ) {
+                            Text("Auto")
+                        }
+                        SegmentedButton(
                             selected = state.themeMode == 1,
                             onClick = { onThemeModeChange(1) },
-                            label = { Text("Dark") },
-                            leadingIcon = {
-                                if (state.themeMode == 1) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        )
-                        FilterChip(
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                        ) {
+                            Text("Dark")
+                        }
+                        SegmentedButton(
                             selected = state.themeMode == 2,
                             onClick = { onThemeModeChange(2) },
-                            label = { Text("Light") },
-                            leadingIcon = {
-                                if (state.themeMode == 2) Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                        ) {
+                            Text("Light")
+                        }
                     }
                 }
             }
