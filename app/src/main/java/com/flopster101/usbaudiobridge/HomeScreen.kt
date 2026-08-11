@@ -119,7 +119,7 @@ fun HomeScreen(
             // Card 1.5: Audio Devices
             item {
                 Text(
-                    text = "AUDIO DEVICES",
+                    text = "Audio devices",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
@@ -219,7 +219,7 @@ fun HomeScreen(
             // Card 2: Status
             item {
                 Text(
-                    text = "DEVICE STATUS",
+                    text = "Device status",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
@@ -249,7 +249,7 @@ fun HomeScreen(
             // Card 3: Gadget Status
             item {
                 Text(
-                    text = "GADGET STATUS",
+                    text = "Gadget status",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
@@ -280,7 +280,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "DEBUG LOGS",
+                        text = "Debug logs",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)

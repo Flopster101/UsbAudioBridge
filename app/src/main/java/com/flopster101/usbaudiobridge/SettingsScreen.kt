@@ -51,7 +51,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         item {
-            SettingsSectionTitle("AUDIO CONFIGURATION")
+            SettingsSectionTitle("Audio configuration")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -462,7 +462,7 @@ fun SettingsScreen(
 
         // USB Settings
         item {
-            SettingsSectionTitle("USB SETTINGS")
+            SettingsSectionTitle("USB settings")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -542,7 +542,7 @@ fun SettingsScreen(
 
         // Audio Behavior
         item {
-            SettingsSectionTitle("AUDIO BEHAVIOR")
+            SettingsSectionTitle("Audio behavior")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -609,7 +609,7 @@ fun SettingsScreen(
 
         // Notification
         item {
-            SettingsSectionTitle("NOTIFICATION")
+            SettingsSectionTitle("Notification")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -646,7 +646,7 @@ fun SettingsScreen(
 
         // Display
         item {
-            SettingsSectionTitle("DISPLAY")
+            SettingsSectionTitle("Display")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -842,7 +842,7 @@ fun SettingsScreen(
 
         // Appearance
         item {
-            SettingsSectionTitle("APPEARANCE")
+            SettingsSectionTitle("Appearance")
             Spacer(Modifier.height(8.dp))
         }
 
@@ -999,8 +999,8 @@ private fun GroupedSettingsCard(
 private fun SettingsSectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 8.dp)
     )
 }
