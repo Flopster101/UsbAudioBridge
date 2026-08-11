@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -182,24 +183,38 @@ fun HomeScreen(
                                     val isSpeaker = (state.runningDirections and 1) != 0
                                     val isMic = (state.runningDirections and 2) != 0
                                     if (isSpeaker) {
-                                        Icon(
-                                            painter = painterResource(if (state.speakerMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
-                                            contentDescription = if (state.speakerMuted) "Unmute Speaker" else "Mute Speaker",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .clickable { onToggleSpeakerMute() }
-                                        )
+                                        Surface(
+                                            onClick = onToggleSpeakerMute,
+                                            shape = CircleShape,
+                                            color = if (state.speakerMuted) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = if (state.speakerMuted) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(if (state.speakerMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
+                                                    contentDescription = if (state.speakerMuted) "Unmute Speaker" else "Mute Speaker",
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                     if (isMic) {
-                                        Icon(
-                                            painter = painterResource(if (state.micMuted) R.drawable.ic_mic_off else R.drawable.ic_mic),
-                                            contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .clickable { onToggleMicMute() }
-                                        )
+                                        Surface(
+                                            onClick = onToggleMicMute,
+                                            shape = CircleShape,
+                                            color = if (state.micMuted) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = if (state.micMuted) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(if (state.micMuted) R.drawable.ic_mic_off else R.drawable.ic_mic),
+                                                    contentDescription = if (state.micMuted) "Unmute Microphone" else "Mute Microphone",
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
