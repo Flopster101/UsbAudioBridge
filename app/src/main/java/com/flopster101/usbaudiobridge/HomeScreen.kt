@@ -244,14 +244,34 @@ fun HomeScreen(
                 }
             }
 
-            // Card 2: Status
+            // Card 2: System Status
             item {
-                Text(
-                    text = "Device status",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "System status",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(percent = 50),
+                        color = Color(state.serviceStateColor).copy(alpha = 0.15f),
+                        tonalElevation = 0.dp
+                    ) {
+                        Text(
+                            text = state.serviceState,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(state.serviceStateColor),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
 
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
@@ -260,37 +280,32 @@ fun HomeScreen(
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    StatusRow("Gadget", state.getGadgetStatusLabel(), Color(state.getGadgetStatusColor()))
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    StatusRow("State", state.serviceState, Color(state.serviceStateColor))
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    StatusRow("Sample rate", state.sampleRate)
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    StatusRow("Period size", state.periodSize)
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    StatusRow("Current buffer", state.currentBuffer)
-                }
-            }
-
-            // Card 3: Gadget Status
-            item {
-                Text(
-                    text = "Gadget status",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
-                )
-
-                ElevatedCard(
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    ),
-                    shape = RoundedCornerShape(28.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    StatusRow("Controller", state.udcController)
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    StatusRow("Active functions", state.activeFunctions)
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                StatusCell("Gadget", state.getGadgetStatusLabel(), Color(state.getGadgetStatusColor()))
+                                StatusCell("Sample rate", state.sampleRate)
+                                StatusCell("Period size", state.periodSize)
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                StatusCell("Buffer", state.currentBuffer)
+                                StatusCell("Controller", state.udcController)
+                                StatusCell("Active functions", state.activeFunctions)
+                            }
+                        }
+                    }
                 }
             }
 

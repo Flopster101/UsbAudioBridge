@@ -46,7 +46,7 @@ data class MainUiState(
     val dynamicColorsEnabled: Boolean = true,
 
     // Status
-    val serviceState: String = "--",
+    val serviceState: String = "Inactive",
     val serviceStateColor: Long = 0xFF888888, // ARGB Long
     val sampleRate: String = "--",
     val periodSize: String = "--",

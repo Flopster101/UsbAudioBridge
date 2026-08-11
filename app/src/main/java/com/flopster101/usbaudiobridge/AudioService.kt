@@ -437,7 +437,7 @@ class AudioService : Service() {
 
         if (!isBridgeRunning) {
             if (!isGadgetEnabled) {
-                broadcastState("--", 0xFF888888, 0)
+                broadcastState("Inactive", 0xFF888888, 0)
                 return
             }
             broadcastState("Idle", 0xFF888888, 0)
@@ -449,23 +449,23 @@ class AudioService : Service() {
         // Logic table
         val (label, color) = when (lastNativeState) {
             STATE_CONNECTING -> {
-                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
-                else "Active (Searching...)" to 0xFFFFC107 // Amber
+                if (!isUsb) "Not Connected" to 0xFFFFA000 // Orange
+                else "Searching..." to 0xFFFFC107 // Amber
             }
             STATE_WAITING -> {
-                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
-                else "Active (Waiting for Host...)" to 0xFFFFC107 // Amber
+                if (!isUsb) "Not Connected" to 0xFFFFA000 // Orange
+                else "Waiting for Host" to 0xFFFFC107 // Amber
             }
             STATE_STREAMING -> {
-                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                if (!isUsb) "Not Connected" to 0xFFFFA000 // Orange
                 else "Streaming" to 0xFF4CAF50 // Green
             }
             STATE_IDLING -> {
-                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
-                else "Active (Idling)" to 0xFF03A9F4 // Light Blue
+                if (!isUsb) "Not Connected" to 0xFFFFA000 // Orange
+                else "Idle" to 0xFF03A9F4 // Light Blue
             }
             else -> {
-                if (!isUsb) "Active (Not Connected)" to 0xFFFFA000 // Orange
+                if (!isUsb) "Not Connected" to 0xFFFFA000 // Orange
                 else "Active" to 0xFF888888
             }
         }
