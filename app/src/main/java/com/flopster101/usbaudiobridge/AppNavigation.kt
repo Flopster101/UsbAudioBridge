@@ -1,8 +1,11 @@
 package com.flopster101.usbaudiobridge
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -60,9 +63,18 @@ fun AppNavigation(
 ) {
     val screensaverFadeDurationMs = 250
     val navController = rememberNavController()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    val homeScrollBehavior     = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val settingsScrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val aboutScrollBehavior    = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+
+    val currentScrollBehavior = when (currentRoute) {
+        "settings" -> settingsScrollBehavior
+        "about"    -> aboutScrollBehavior
+        else       -> homeScrollBehavior
+    }
 
     // Screensaver timer logic
     val screensaverEnabled = state.keepScreenOnOption && state.screensaverEnabled
@@ -83,16 +95,17 @@ fun AppNavigation(
         }
     }
 
-    val myNestedScrollConnection = remember(scrollBehavior.nestedScrollConnection) {
+    // Rekeyed on currentScrollBehavior so the wrapper always delegates to the active tab's connection
+    val myNestedScrollConnection = remember(currentScrollBehavior) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 lastInteractionTime = System.currentTimeMillis()
-                return scrollBehavior.nestedScrollConnection.onPreScroll(available, source)
+                return currentScrollBehavior.nestedScrollConnection.onPreScroll(available, source)
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 lastInteractionTime = System.currentTimeMillis()
-                return scrollBehavior.nestedScrollConnection.onPostScroll(consumed, available, source)
+                return currentScrollBehavior.nestedScrollConnection.onPostScroll(consumed, available, source)
             }
         }
     }
@@ -100,11 +113,28 @@ fun AppNavigation(
     Scaffold(
         modifier = Modifier.nestedScroll(myNestedScrollConnection),
         topBar = {
-            if (currentRoute != "about") {
-                LargeTopAppBar(
-                    title = { Text("USB Audio Bridge") },
-                    scrollBehavior = scrollBehavior
-                )
+            AnimatedContent(
+                targetState = currentRoute,
+                transitionSpec = {
+                    (fadeIn(tween(200)) togetherWith fadeOut(tween(150)))
+                        .using(SizeTransform(clip = false) { _, _ -> tween(220) })
+                },
+                label = "TopBarTransition"
+            ) { route ->
+                when (route) {
+                    "home" -> LargeTopAppBar(
+                        title = { Text("USB Audio Bridge") },
+                        scrollBehavior = homeScrollBehavior
+                    )
+                    "settings" -> MediumTopAppBar(
+                        title = { Text("Settings") },
+                        scrollBehavior = settingsScrollBehavior
+                    )
+                    "about" -> MediumTopAppBar(
+                        title = { Text("About") },
+                        scrollBehavior = aboutScrollBehavior
+                    )
+                }
             }
         },
         bottomBar = {
