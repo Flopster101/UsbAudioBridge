@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,13 +97,6 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            },
-                            trailingContent = {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Select",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             },
                             modifier = Modifier.clickable { showLatencyDialog = true },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -250,11 +241,6 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     },
                     modifier = Modifier.clickable { showMicDialog = true },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -298,11 +284,6 @@ fun SettingsScreen(
                             text = "${state.sampleRateOption} Hz",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     modifier = Modifier.clickable { showSampleRateDialog = true },
@@ -423,11 +404,6 @@ fun SettingsScreen(
                             text = label,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     modifier = Modifier.clickable { showPeriodDialog = true },
