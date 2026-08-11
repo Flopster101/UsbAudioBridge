@@ -321,7 +321,7 @@ fun HomeScreen(
                             ) {
                                 StatusCell("Buffer", state.currentBuffer)
                                 StatusCell("Controller", state.udcController)
-                                StatusCell("Active functions", state.activeFunctions)
+                                StatusCell("Functions", state.activeFunctions)
                             }
                         }
                     }

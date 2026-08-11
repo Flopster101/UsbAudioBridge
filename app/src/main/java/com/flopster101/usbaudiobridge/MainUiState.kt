@@ -73,10 +73,10 @@ fun MainUiState.getGadgetStatusLabel(): String {
 
     val active = activeFunctions.lowercase()
     return when {
-        active.contains("uac1") -> "Enabled (UAC1)"
-        active.contains("uac2") -> "Enabled (UAC2)"
-        uacVersionOption == 1 -> "Enabled (UAC1)"
-        else -> "Enabled (UAC2)"
+        active.contains("uac1") -> "UAC1"
+        active.contains("uac2") -> "UAC2"
+        uacVersionOption == 1 -> "UAC1"
+        else -> "UAC2"
     }
 }
 
