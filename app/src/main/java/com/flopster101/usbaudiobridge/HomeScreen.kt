@@ -92,56 +92,54 @@ fun HomeScreen(
                             modifier = Modifier.padding(horizontal = 24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            FilledTonalButton(
-                                onClick = { onToggleGadget(!state.isGadgetEnabled) },
-                                enabled = !state.isGadgetPending,
-                                modifier = Modifier.fillMaxWidth().height(60.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = heroContainer,
-                                    contentColor = heroContent
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                val isPending = state.isGadgetPending
-                                val label = when {
-                                    isPending && state.lastGadgetActionWasEnable -> "Enabling..."
-                                    isPending -> "Disabling..."
-                                    state.isGadgetEnabled -> "Disable USB Gadget"
-                                    else -> "Enable USB Gadget"
-                                }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                FilledTonalButton(
+                                    onClick = { onToggleGadget(!state.isGadgetEnabled) },
+                                    enabled = !state.isGadgetPending,
+                                    modifier = Modifier.weight(1f).height(56.dp),
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = heroContainer,
+                                        contentColor = heroContent
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
                                 ) {
-                                    if (isPending) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                        Spacer(Modifier.width(10.dp))
-                                    } else {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_usb),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(Modifier.width(10.dp))
+                                    val isPending = state.isGadgetPending
+                                    val label = when {
+                                        isPending && state.lastGadgetActionWasEnable -> "Enabling..."
+                                        isPending -> "Disabling..."
+                                        state.isGadgetEnabled -> "Disable gadget"
+                                        else -> "Enable gadget"
                                     }
-                                    Text(label, style = MaterialTheme.typography.titleMedium)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        if (isPending) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                        }
+                                        Text(label, style = MaterialTheme.typography.labelLarge)
+                                    }
                                 }
-                            }
-                            Spacer(Modifier.height(12.dp))
-                            Button(
-                                onClick = onToggleCapture,
-                                enabled = state.isGadgetEnabled && !state.isCapturePending,
-                                modifier = Modifier.fillMaxWidth().height(56.dp)
-                            ) {
-                                val buttonText = when {
-                                    state.isCapturePending -> if (state.isServiceRunning) "Stopping..." else "Starting..."
-                                    state.isServiceRunning -> "Stop Audio Capture"
-                                    else -> "Start Audio Capture"
+                                FilledTonalButton(
+                                    onClick = onToggleCapture,
+                                    enabled = state.isGadgetEnabled && !state.isCapturePending,
+                                    modifier = Modifier.weight(1f).height(56.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                ) {
+                                    val buttonText = when {
+                                        state.isCapturePending -> if (state.isServiceRunning) "Stopping..." else "Starting..."
+                                        state.isServiceRunning -> "Stop capture"
+                                        else -> "Start capture"
+                                    }
+                                    Text(buttonText, style = MaterialTheme.typography.labelLarge)
                                 }
-                                Text(buttonText)
                             }
                             AnimatedVisibility(
                                 visible = state.gadgetStatusError != null,
