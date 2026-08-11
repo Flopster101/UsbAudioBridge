@@ -13,10 +13,10 @@ constexpr int32_t kMaxTimeoutStreak = 100;
 
 bool OboeErrorCallback::onError(oboe::AudioStream*, oboe::Result error) {
     if (error == oboe::Result::ErrorDisconnected) {
-        if (enginePtr) {
-            enginePtr->setDisconnected();
+        bool newlySet = enginePtr && enginePtr->setDisconnected();
+        if (newlySet) {
+            reportOutputDisconnectToJava();
         }
-        reportOutputDisconnectToJava();
     } else {
         LOGE("[Native] Oboe error callback: error %d", static_cast<int>(error));
     }
@@ -31,9 +31,12 @@ void OboeErrorCallback::onErrorBeforeClose(oboe::AudioStream*, oboe::Result erro
 
 // --- Oboe Output Engine ---
 
-void OboeEngine::setDisconnected() {
-    disconnected.store(true);
+bool OboeEngine::setDisconnected() {
+    if (disconnected.exchange(true)) {
+        return false;
+    }
     LOGD("[Native] Oboe stream marked as disconnected");
+    return true;
 }
 
 bool OboeEngine::open(int rate, int channelCount) {
@@ -102,6 +105,17 @@ void OboeEngine::write(const uint8_t* data, size_t sizeBytes) {
         }
 
         oboe::Result error = result.error();
+        if (error == oboe::Result::ErrorDisconnected ||
+            error == oboe::Result::ErrorClosed ||
+            error == oboe::Result::ErrorInvalidHandle) {
+            LOGD("[Native] Oboe write failed: stream no longer usable (%d)",
+                 static_cast<int>(error));
+            if (error == oboe::Result::ErrorDisconnected && setDisconnected()) {
+                reportOutputDisconnectToJava();
+            }
+            break;
+        }
+
         if (error == oboe::Result::ErrorTimeout) {
             if (++timeoutStreak >= kMaxTimeoutStreak) {
                 static int timeoutLogCount = 0;

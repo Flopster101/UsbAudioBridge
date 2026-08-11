@@ -32,7 +32,7 @@ class OboeEngine : public AudioEngine {
 
 public:
     bool isDisconnected() const { return disconnected.load(); }
-    void setDisconnected();
+    bool setDisconnected();
 
     bool open(int rate, int channelCount) override;
     void start() override;
