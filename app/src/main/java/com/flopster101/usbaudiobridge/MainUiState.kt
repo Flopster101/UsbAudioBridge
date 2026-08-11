@@ -14,6 +14,7 @@ data class MainUiState(
     val latencyPreset: Int = 2, // 2 = Normal
     val periodSizeOption: Int = 0, // 0 = Auto
     val engineTypeOption: Int = 0, // 0 = AAudio, 1 = OpenSL, 2 = AudioTrack
+    val useOboeOption: Boolean = true, // Prefer Oboe (auto backend selection)
     val sampleRateOption: Int = 48000,
     val uacVersionOption: Int = 2, // 1 = UAC1, 2 = UAC2
     val keepAdbOption: Boolean = false,

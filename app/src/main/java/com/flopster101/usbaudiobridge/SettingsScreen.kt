@@ -22,6 +22,7 @@ fun SettingsScreen(
     onLatencyPresetChange: (Int) -> Unit,
     onPeriodSizeChange: (Int) -> Unit,
     onEngineTypeChange: (Int) -> Unit,
+    onUseOboeChange: (Boolean) -> Unit,
     onSampleRateChange: (Int) -> Unit,
     onUacVersionChange: (Int) -> Unit,
     onKeepAdbChange: (Boolean) -> Unit,
@@ -330,51 +331,75 @@ fun SettingsScreen(
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Middle) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Audio output engine", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Select the backend driver for playback.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = state.engineTypeOption == 0,
-                            onClick = { onEngineTypeChange(0) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
-                        ) {
-                            Text("AAudio")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onUseOboeChange(!state.useOboeOption) },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Use Oboe", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Recommended. Automatically picks the best backend (AAudio on Android 8.1+, OpenSL ES otherwise) with low latency.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        SegmentedButton(
-                            selected = state.engineTypeOption == 1,
-                            onClick = { onEngineTypeChange(1) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-                        ) {
-                            Text("OpenSL ES")
-                        }
-                        SegmentedButton(
-                            selected = state.engineTypeOption == 2,
-                            onClick = { onEngineTypeChange(2) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-                        ) {
-                            Text("AudioTrack")
-                        }
+                        Switch(
+                            checked = state.useOboeOption,
+                            onCheckedChange = onUseOboeChange,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
                     }
 
-                    Spacer(Modifier.height(12.dp))
-                    val desc = when(state.engineTypeOption) {
-                        0 -> "AAudio: Low latency, high performance. Recommended for Android 8.1+."
-                        1 -> "OpenSL ES: Native audio standard. Good alternative if AAudio has glitches."
-                        2 -> "AudioTrack: Legacy Java-based audio. Highest compatibility, higher latency."
-                        else -> ""
+                    if (!state.useOboeOption) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Select the backend driver for playback.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = state.engineTypeOption == 0,
+                                onClick = { onEngineTypeChange(0) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                            ) {
+                                Text("AAudio")
+                            }
+                            SegmentedButton(
+                                selected = state.engineTypeOption == 1,
+                                onClick = { onEngineTypeChange(1) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                            ) {
+                                Text("OpenSL ES")
+                            }
+                            SegmentedButton(
+                                selected = state.engineTypeOption == 2,
+                                onClick = { onEngineTypeChange(2) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                            ) {
+                                Text("AudioTrack")
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        val desc = when(state.engineTypeOption) {
+                            0 -> "AAudio: Low latency, high performance. Recommended for Android 8.1+."
+                            1 -> "OpenSL ES: Native audio standard. Good alternative if AAudio has glitches."
+                            2 -> "AudioTrack: Legacy Java-based audio. Highest compatibility, higher latency."
+                            else -> ""
+                        }
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                 }
             }
         }

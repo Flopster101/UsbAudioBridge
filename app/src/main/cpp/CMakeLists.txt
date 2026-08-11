@@ -18,6 +18,9 @@ add_library(tinyalsa STATIC
 target_include_directories(tinyalsa PUBLIC
     ${CMAKE_SOURCE_DIR}/tinyalsa/include)
 
+# Build Oboe from source
+add_subdirectory(oboe)
+
 # Define our JNI library
 add_library(usbaudio SHARED
     native-lib.cpp
@@ -25,6 +28,7 @@ add_library(usbaudio SHARED
     audio/aaudio_engine.cpp
     audio/opensl_engine.cpp
     audio/java_audio_track_engine.cpp
+    audio/oboe_engine.cpp
     core/bridge.cpp
 )
 
@@ -34,6 +38,7 @@ find_library(aaudio-lib aaudio)
 
 target_link_libraries(usbaudio
     tinyalsa
+    oboe
     ${log-lib}
     ${aaudio-lib}
     OpenSLES)

@@ -527,6 +527,10 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(engineTypeOption = it)
                                 settingsRepo.saveEngineType(it)
                             },
+                            onUseOboeChange = {
+                                uiState = uiState.copy(useOboeOption = it)
+                                settingsRepo.saveUseOboe(it)
+                            },
                             onSampleRateChange = { rate ->
                                 settingsRepo.saveSampleRate(rate)
                                 if (uiState.bufferMode == 0) {
@@ -664,6 +668,7 @@ class MainActivity : ComponentActivity() {
                                     latencyPreset = settingsRepo.getLatencyPreset(),
                                     periodSizeOption = settingsRepo.getPeriodSize(),
                                     engineTypeOption = settingsRepo.getEngineType(),
+                                    useOboeOption = settingsRepo.getUseOboe(),
                                     sampleRateOption = settingsRepo.getSampleRate(),
                                     uacVersionOption = settingsRepo.getUacVersion(),
                                     keepAdbOption = settingsRepo.getKeepAdb(),
@@ -753,7 +758,7 @@ class MainActivity : ComponentActivity() {
         audioService?.startBridge(
              uiState.bufferSize.toInt(),
              uiState.periodSizeOption,
-             uiState.engineTypeOption,
+             if (uiState.useOboeOption) 3 else uiState.engineTypeOption,
              uiState.sampleRateOption,
              uiState.activeDirectionsOption,
              uiState.micSourceOption

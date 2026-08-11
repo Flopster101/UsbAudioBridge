@@ -12,6 +12,7 @@
 #include "../audio/aaudio_engine.h"
 #include "../audio/audio_common.h"
 #include "../audio/java_audio_track_engine.h"
+#include "../audio/oboe_engine.h"
 #include "../audio/opensl_engine.h"
 #include "../audio/ring_buffer.h"
 #include "../logging/logging.h"
@@ -345,6 +346,9 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
   } else if (engineType == 2) {
     engine = new JavaAudioTrackEngine();
     LOGD("[Native] Using Legacy AudioTrack Engine");
+  } else if (engineType == 3) {
+    engine = new OboeEngine();
+    LOGD("[Native] Using Oboe Engine");
   } else {
     engine = new AAudioEngine();
     LOGD("[Native] Using AAudio Engine");
@@ -408,6 +412,11 @@ void bridgeTask(int card, int device, int bufferSizeFrames,
     minTargetFrames = 120;
     maxTargetFrames = 480;
     emptySleepUs = 400;
+  } else if (engineType == 3) {
+    backendName = "Oboe";
+    minTargetFrames = 96;
+    maxTargetFrames = 240;
+    emptySleepUs = 250;
   } else {
     backendName = "AAudio";
     minTargetFrames = 96;

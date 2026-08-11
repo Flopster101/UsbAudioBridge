@@ -20,6 +20,9 @@ class SettingsRepository(context: Context) {
     fun saveEngineType(type: Int) = prefs.edit().putInt("engine_type", type).apply()
     fun getEngineType(): Int = prefs.getInt("engine_type", 0)
 
+    fun saveUseOboe(enabled: Boolean) = prefs.edit().putBoolean("use_oboe", enabled).apply()
+    fun getUseOboe(): Boolean = prefs.getBoolean("use_oboe", true)
+
     fun saveSampleRate(rate: Int) = prefs.edit().putInt("sample_rate", rate).apply()
     fun getSampleRate(): Int = prefs.getInt("sample_rate", 48000)
 
