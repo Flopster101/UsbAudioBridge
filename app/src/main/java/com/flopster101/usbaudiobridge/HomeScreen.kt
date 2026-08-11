@@ -63,7 +63,7 @@ fun HomeScreen(
             item {
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
                     ),
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -227,7 +227,7 @@ fun HomeScreen(
 
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
                     ),
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -257,7 +257,7 @@ fun HomeScreen(
 
                 ElevatedCard(
                     colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     ),
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier.fillMaxWidth()
