@@ -35,6 +35,7 @@ fun SettingsScreen(
     onScreensaverRepositionIntervalChange: (Int) -> Unit,
     onScreensaverDvdModeChange: (Boolean) -> Unit,
     onScreensaverDvdSpeedChange: (Int) -> Unit,
+    onScreensaverFpsLimitChange: (Int) -> Unit,
     onScreensaverFullscreenChange: (Boolean) -> Unit,
     onMuteOnMediaButtonChange: (Boolean) -> Unit,
     onThemeModeChange: (Int) -> Unit,
@@ -635,6 +636,7 @@ fun SettingsScreen(
                     )
 
                     if (state.screensaverEnabled && state.keepScreenOnOption) {
+                        var showFpsDialog by remember { mutableStateOf(false) }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                         Row(
@@ -753,6 +755,39 @@ fun SettingsScreen(
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                        ListItem(
+                            headlineContent = { Text("Frame rate limit", style = MaterialTheme.typography.bodyLarge) },
+                            supportingContent = {
+                                Text(
+                                    text = "Limits screensaver redraw rate to save power on devices where rendering is expensive.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingContent = {
+                                Text(
+                                    text = "${state.screensaverFpsLimit} fps",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            modifier = Modifier.clickable { showFpsDialog = true },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
+
+                        if (showFpsDialog) {
+                            FpsLimitDialog(
+                                currentValue = state.screensaverFpsLimit,
+                                onDismiss = { showFpsDialog = false },
+                                onSave = {
+                                    onScreensaverFpsLimitChange(it)
+                                    showFpsDialog = false
+                                }
+                            )
+                        }
                     }
                 }
             }

@@ -84,7 +84,7 @@ fun ScreensaverOverlay(
     }
 
     // DVD mode: glide and bounce continuously, starting after overlay fade-in
-    LaunchedEffect(state.screensaverDvdMode, state.screensaverDvdSpeed, contentSize, isPositioned, fadeInDurationMs) {
+    LaunchedEffect(state.screensaverDvdMode, state.screensaverDvdSpeed, state.screensaverFpsLimit, contentSize, isPositioned, fadeInDurationMs) {
         if (!state.screensaverDvdMode) return@LaunchedEffect
         if (!isPositioned || contentSize == IntSize.Zero) return@LaunchedEffect
 
@@ -92,12 +92,19 @@ fun ScreensaverOverlay(
 
         val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
-        var lastFrameNanos = withFrameNanos { it }
+        val fps = state.screensaverFpsLimit.coerceAtLeast(1)
+        val frameIntervalMillis = (1000L / fps).coerceAtLeast(1L)
+        var lastUpdateNanos = withFrameNanos { it }
 
         while (true) {
-            val nowNanos = withFrameNanos { it }
-            val dtSeconds = ((nowNanos - lastFrameNanos).coerceAtLeast(0L) / 1_000_000_000f).coerceAtMost(0.05f)
-            lastFrameNanos = nowNanos
+            if (fps >= 1) {
+                delay(frameIntervalMillis)
+            } else {
+                withFrameNanos { }
+            }
+            val nowNanos = System.nanoTime()
+            val dtSeconds = ((nowNanos - lastUpdateNanos).coerceAtLeast(0L) / 1_000_000_000f).coerceAtMost(0.05f)
+            lastUpdateNanos = nowNanos
 
             val maxX = maxOf(0f, screenWidth - contentSize.width.toFloat())
             val maxY = maxOf(0f, screenHeight - contentSize.height.toFloat())

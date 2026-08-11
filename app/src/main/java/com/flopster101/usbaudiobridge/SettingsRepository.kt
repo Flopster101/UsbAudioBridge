@@ -78,6 +78,9 @@ class SettingsRepository(context: Context) {
     fun saveScreensaverDvdSpeed(speedPxPerSec: Int) = prefs.edit().putInt("screensaver_dvd_speed", speedPxPerSec).apply()
     fun getScreensaverDvdSpeed(): Int = prefs.getInt("screensaver_dvd_speed", 140) // Default medium speed
 
+    fun saveScreensaverFpsLimit(limit: Int) = prefs.edit().putInt("screensaver_fps_limit", limit).apply()
+    fun getScreensaverFpsLimit(): Int = prefs.getInt("screensaver_fps_limit", 30) // Default 30 FPS
+
     fun saveScreensaverFullscreen(enabled: Boolean) = prefs.edit().putBoolean("screensaver_fullscreen", enabled).apply()
     fun getScreensaverFullscreen(): Boolean = prefs.getBoolean("screensaver_fullscreen", true) // Default true
 

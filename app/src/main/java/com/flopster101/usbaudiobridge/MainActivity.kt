@@ -292,6 +292,7 @@ class MainActivity : ComponentActivity() {
             screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
             screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
             screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
+            screensaverFpsLimit = settingsRepo.getScreensaverFpsLimit(),
             screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
             muteOnMediaButton = settingsRepo.getMuteOnMediaButton(),
             themeMode = settingsRepo.getThemeMode(),
@@ -610,6 +611,10 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState.copy(screensaverDvdSpeed = it)
                                 settingsRepo.saveScreensaverDvdSpeed(it)
                             },
+                            onScreensaverFpsLimitChange = {
+                                uiState = uiState.copy(screensaverFpsLimit = it)
+                                settingsRepo.saveScreensaverFpsLimit(it)
+                            },
                             onScreensaverFullscreenChange = {
                                 uiState = uiState.copy(screensaverFullscreen = it)
                                 settingsRepo.saveScreensaverFullscreen(it)
@@ -681,6 +686,7 @@ class MainActivity : ComponentActivity() {
                                     screensaverRepositionInterval = settingsRepo.getScreensaverRepositionInterval(),
                                     screensaverDvdMode = settingsRepo.getScreensaverDvdMode(),
                                     screensaverDvdSpeed = settingsRepo.getScreensaverDvdSpeed(),
+                                    screensaverFpsLimit = settingsRepo.getScreensaverFpsLimit(),
                                     screensaverFullscreen = settingsRepo.getScreensaverFullscreen(),
                                     muteOnMediaButton = settingsRepo.getMuteOnMediaButton(),
                                     themeMode = settingsRepo.getThemeMode(),
