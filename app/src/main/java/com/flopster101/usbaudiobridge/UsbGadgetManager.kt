@@ -59,6 +59,56 @@ object UsbGadgetManager {
         }
     }
 
+    private var cachedStrategy: GadgetStrategy? = null
+
+    // Cached per process lifetime.
+    fun detectGadgetStrategy(): GadgetStrategy {
+        cachedStrategy?.let { return it }
+
+        val strategy = try {
+            val vendorManufacturer = runRootCommandGetOutput("getprop ro.product.vendor.manufacturer")
+                .ifBlank { runRootCommandGetOutput("getprop ro.product.manufacturer") }
+            val board = runRootCommandGetOutput("getprop ro.board.platform")
+            val hardware = runRootCommandGetOutput("getprop ro.hardware")
+
+            // Match both HAL families (gadget-service.* and usb@1.x-service)
+            val halProcs = runRootCommandGetOutput(
+                "ps -A 2>/dev/null | grep -iE 'usb.*gadget|gadget.*usb|usb@1\\.|usb@2\\.'"
+            )
+            val env = when {
+                halProcs.contains("gadget-service.samsung", ignoreCase = true) ->
+                    GadgetEnvironment.SAMSUNG_LIBPIXELUSB
+                halProcs.contains("gadget-service.qti", ignoreCase = true) ->
+                    GadgetEnvironment.QUALCOMM_HAL
+                halProcs.contains("usb@1.1-service", ignoreCase = true) ||
+                    halProcs.contains("usb@1.2-service", ignoreCase = true) ||
+                    halProcs.contains("usb@1.3-service", ignoreCase = true) ||
+                    halProcs.contains("usb@2.0-service", ignoreCase = true) ->
+                    if (vendorManufacturer.contains("samsung", ignoreCase = true)) {
+                        GadgetEnvironment.SAMSUNG_STOCK_INITRC
+                    } else {
+                        GadgetEnvironment.AOSP_GENERIC
+                    }
+                halProcs.contains("usb-gadget-hal", ignoreCase = true) ||
+                    halProcs.contains("gadget-service.example", ignoreCase = true) ->
+                    GadgetEnvironment.AOSP_GENERIC
+                hardware.contains("mt", ignoreCase = true) ||
+                    board.contains("mt", ignoreCase = true) ||
+                    hardware.contains("mediatek", ignoreCase = true) ->
+                    GadgetEnvironment.MTK_CONFIGFS
+                halProcs.isNotBlank() -> GadgetEnvironment.AOSP_GENERIC
+                else -> GadgetEnvironment.UNKNOWN
+            }
+            GadgetStrategy.forEnvironment(env)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gadget strategy detection failed: ${e.message}")
+            GadgetStrategy.forEnvironment(GadgetEnvironment.UNKNOWN)
+        }
+
+        cachedStrategy = strategy
+        return strategy
+    }
+
     private fun getRootSolution(): String {
         try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "--version"))
@@ -75,13 +125,23 @@ object UsbGadgetManager {
     }
 
     /**
-     * Check if ADB is currently active by checking the USB config property.
+     * `sys.usb.config` is the fast path but not authoritative: some HALs (QTI,
+     * after `svc usb setFunctions ''`) leave it "none" while adb is bound. Fall
+     * back to configfs ground truth (ffs.adb link + bound UDC).
      */
     private fun isAdbCurrentlyActive(): Boolean {
         return try {
             val p = Runtime.getRuntime().exec("getprop sys.usb.config")
             val config = p.inputStream.bufferedReader().readText().trim()
-            config.contains("adb")
+            if (config.contains("adb")) {
+                true
+            } else {
+                val links = runRootCommandGetOutput(
+                    "ls -l $GADGET_ROOT/configs/b.1/ 2>/dev/null | grep ffs.adb"
+                )
+                val udc = getUdcContent()
+                links.contains("ffs.adb") && udc.isNotEmpty() && udc != "none"
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error checking ADB status: ${e.message}")
             false
@@ -95,31 +155,6 @@ object UsbGadgetManager {
         } catch (e: Exception) {
             ""
         }
-    }
-
-    private suspend fun findRunningUsbHalService(): String? = withContext(Dispatchers.IO) {
-        val candidates = listOf(
-            "vendor.usb-gadget-hal-1-0",
-            "android.hardware.usb.gadget-service.samsung",
-            "android.hardware.usb.gadget-service.mediatek",
-            "android.hardware.usb-service.mediatek",
-            "vendor.usb-hal-1-0",
-            "vendor.usb-hal-1-1",
-            "vendor.usb-hal-1-2",
-            "android.hardware.usb@1.0-service",
-            "android.hardware.usb@1.1-service",
-            "android.hardware.usb@1.2-service",
-            "vendor.usb-gadget-hal",
-            "usbgadget-hal-1-0"
-        )
-
-        for (name in candidates) {
-            val status = runRootCommandGetOutput("getprop init.svc.$name")
-            if (status == "running" || status == "restarting") {
-                return@withContext name
-            }
-        }
-        return@withContext null
     }
 
     private fun configureMtkMode(udcName: String, enable: Boolean, logCallback: (String) -> Unit) {
@@ -148,29 +183,6 @@ object UsbGadgetManager {
         }
     }
 
-    private suspend fun stopUsbHal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository?) {
-        val serviceName = findRunningUsbHalService()
-        if (serviceName != null) {
-            logCallback("[Gadget] Stopping conflicting USB HAL service: $serviceName")
-            // Use setprop ctl.stop to stop the service
-            if (runRootCommands(listOf("setprop ctl.stop $serviceName"), {})) {
-                settingsRepo?.saveStoppedHalService(serviceName)
-                Thread.sleep(500) // Give it time to stop and release resources
-            } else {
-                logCallback("[Gadget] Failed to stop service $serviceName")
-            }
-        }
-    }
-
-    private suspend fun startUsbHal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository?) {
-        val serviceName = settingsRepo?.getStoppedHalService()
-        if (serviceName != null) {
-            logCallback("[Gadget] Restarting USB HAL service: $serviceName")
-            runRootCommands(listOf("setprop ctl.start $serviceName"), {})
-            settingsRepo.clearStoppedHalService()
-        }
-    }
-
     /**
      * Check if the ffs.adb function exists in configfs.
      */
@@ -194,10 +206,31 @@ object UsbGadgetManager {
         }
 
         if (commands.isEmpty()) {
-            commands.add("setprop sys.usb.config adb")
+            // Fall back to the framework's persisted default (e.g. adb)
+            val persistDefault = runRootCommandGetOutput("getprop persist.sys.usb.config")
+            if (!persistDefault.isNullOrBlank()) {
+                commands.add("setprop sys.usb.config $persistDefault")
+            }
         }
 
+        // Clear sys.usb.state so the framework reapplies its own config
+        commands.add("setprop sys.usb.state \"\"")
+
         runRootCommands(commands, logCallback)
+    }
+
+    /**
+     * Extract a single framework-settable USB function from a stored config string
+     * (e.g. "adb" -> null, "mtp,adb" -> "mtp", "mtp" -> "mtp"). Non-settable
+     * functions such as adb are stripped so we only hand the framework values it
+     * accepts via `svc usb setFunctions`.
+     */
+    private fun getSettableFunctionFromConfig(config: String?): String? {
+        if (config.isNullOrBlank()) return null
+        val settable = listOf("mtp", "ptp", "rndis", "midi", "ncm")
+        return config.split(",")
+            .map { it.trim().lowercase() }
+            .firstOrNull { it in settable }
     }
 
     /**
@@ -363,9 +396,18 @@ object UsbGadgetManager {
         }
 
         // Check ADB status if user wants to keep it
+        val strategy = detectGadgetStrategy()
+        logCallback("[Gadget] USB environment: ${strategy.label}")
+        var keepAdbEffective = keepAdb
+        if (keepAdb && !strategy.supportsKeepAdb) {
+            logCallback("[Gadget] Keep ADB not supported on this device (${strategy.label}).")
+            logCallback("[Gadget] ${strategy.keepAdbReason}")
+            keepAdbEffective = false
+        }
+
         var adbWasActive = false
         var ffsAdbExists = false
-        if (keepAdb) {
+        if (keepAdbEffective) {
             adbWasActive = isAdbCurrentlyActive()
             ffsAdbExists = isFfsAdbFunctionAvailable()
             if (adbWasActive && ffsAdbExists) {
@@ -377,9 +419,6 @@ object UsbGadgetManager {
                 logCallback("[Gadget] ADB not currently active, ignoring keepAdb option.")
             }
         }
-
-        // Anti-Interference: Stop USB HAL if running
-        stopUsbHal(logCallback, settingsRepo)
 
         var deviceSerial = "UNKNOWN"
 
@@ -427,7 +466,40 @@ object UsbGadgetManager {
         val pid = getPidForRate(sampleRate)
         val serial = getSerialNumberForRate(sampleRate, deviceSerial)
 
-        val needPreserveAdb = keepAdb && adbWasActive && ffsAdbExists
+        val needPreserveAdb = keepAdbEffective && adbWasActive && ffsAdbExists
+
+        val links = runRootCommandGetOutput(
+            "ls -l $GADGET_ROOT/configs/b.1/ 2>/dev/null | sed -n 's/.* \\([^ /]*\\) -> \\(.*\\)/\\1=\\2/p'"
+        )
+        val ids = runRootCommandGetOutput(
+            "echo v=$(cat $GADGET_ROOT/idVendor 2>/dev/null); " +
+            "echo p=$(cat $GADGET_ROOT/idProduct 2>/dev/null); " +
+            "echo bcd=$(cat $GADGET_ROOT/bcdDevice 2>/dev/null); " +
+            "echo bcdusb=$(cat $GADGET_ROOT/bcdUSB 2>/dev/null)"
+        )
+        val osDesc = if (runRootCommand("test -f $GADGET_ROOT/os_desc/use", {})) {
+            runRootCommandGetOutput(
+                "echo use=$(cat $GADGET_ROOT/os_desc/use 2>/dev/null); " +
+                "echo code=$(cat $GADGET_ROOT/os_desc/b_vendor_code 2>/dev/null); " +
+                "echo qw=$(cat $GADGET_ROOT/os_desc/qw_sign 2>/dev/null)"
+            )
+        } else {
+            ""
+        }
+        val configStr = runRootCommandGetOutput(
+            "cat $GADGET_ROOT/configs/b.1/strings/0x409/configuration 2>/dev/null"
+        )
+        val udc = getUdcContent()
+        val previous = settingsRepo?.getOriginalGadgetState()
+        val hasUsablePrevious = !previous?.links.isNullOrBlank()
+        if (links.isNotBlank()) {
+            settingsRepo?.saveOriginalGadgetState(links, ids, osDesc, configStr, udc)
+            logCallback("[Gadget] Captured original gadget state.")
+        } else if (hasUsablePrevious) {
+            logCallback("[Gadget] USB gadget already empty; keeping previously captured original state.")
+        } else {
+            logCallback("[Gadget] WARNING: No original gadget state to restore. USB may be left dead on disable.")
+        }
 
         // Step 1: Try soft unbind first
         val softUnbindSucceeded = softUnbind(logCallback)
@@ -454,10 +526,7 @@ object UsbGadgetManager {
             logCallback("[Gadget] UDC already released.")
         }
 
-        // Step 3: Check if we can still use ADB (only matters if soft unbind succeeded)
-        // On QTI HAL devices, soft unbind works and ffs.adb remains available.
-        // We only check if the function directory exists - the sys.usb.ffs.ready property
-        // may be cleared during unbind but that doesn't mean ffs.adb is unusable.
+        // Step 3: Confirm ffs.adb is still usable after unbind
         var adbAvailable = false
         if (softUnbindSucceeded && needPreserveAdb) {
             adbAvailable = isFfsAdbFunctionAvailable()
@@ -475,7 +544,6 @@ object UsbGadgetManager {
         val configCommands = mutableListOf(
             // Clear existing function links
             "rm -f $GADGET_ROOT/configs/b.1/f* || true",
-            "rm -f $GADGET_ROOT/os_desc/b.1 || true",
 
             // Remove old UAC functions if they exist
             "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
@@ -510,7 +578,7 @@ object UsbGadgetManager {
 
             // Set Configuration String
             "mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409",
-            "ln -s $GADGET_ROOT/configs/b.1 $GADGET_ROOT/os_desc/b.1"
+            "test -e $GADGET_ROOT/os_desc/b.1 || ln -sfn $GADGET_ROOT/configs/b.1 $GADGET_ROOT/os_desc/b.1"
         )
 
         // Link functions
@@ -530,6 +598,12 @@ object UsbGadgetManager {
              return false
         }
 
+        // Not preserving ADB: stop adbd so its bind attempts can't churn the composite. Restarted during disable.
+        if (!needPreserveAdb) {
+            logCallback("[Gadget] Stopping adbd for UAC2-only session...")
+            runRootCommands(listOf("setprop ctl.stop adbd"), logCallback)
+        }
+
         Thread.sleep(500)
 
         // Step 5: Bind the gadget
@@ -540,7 +614,7 @@ object UsbGadgetManager {
                 logCallback("[Gadget] Composite gadget active: $uacDisplayName + ADB")
             } else {
                 logCallback("[Gadget] $uacDisplayName gadget active")
-                if (keepAdb && adbWasActive && !adbAvailable) {
+                if (keepAdbEffective && adbWasActive && !adbAvailable) {
                     logCallback("[Gadget] Note: ADB will reconnect when you disable the gadget.")
                 }
             }
@@ -571,38 +645,57 @@ object UsbGadgetManager {
     }
 
     private fun bindGadgetWithRetry(logCallback: (String) -> Unit): Boolean {
+        // MTK Specific: Force device mode
+        val udcName = getPreferredUdcController()
+        if (udcName != null) {
+            configureMtkMode(udcName, true, logCallback)
+        }
         for (i in 1..5) {
              try {
-                 val udcName = getPreferredUdcController()
-
-                 if (udcName == null) {
+                 val effectiveUdc = getPreferredUdcController() ?: udcName
+                 if (effectiveUdc == null) {
                      logCallback("[Gadget] Error: No UDC controller found.")
                      return false
                  }
 
-                 // MTK Specific: Force device mode
-                 configureMtkMode(udcName, true, logCallback)
-
-                 // Ensure UDC is writable and clear
-                 Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod 666 $GADGET_ROOT/UDC")).waitFor()
-                 Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '' > $GADGET_ROOT/UDC")).waitFor()
-                 Thread.sleep(200)
-
-                 logCallback("[Gadget] Binding to $udcName (Attempt $i)...")
-                 runRootCommand("echo '$udcName' > $GADGET_ROOT/UDC", logCallback)
-
-                 Thread.sleep(300)
-                 val currentUdc = getUdcContent()
-                 if (currentUdc == udcName) {
+                 logCallback("[Gadget] Binding to $effectiveUdc (Attempt $i)...")
+                 if (bindWithUdcName(effectiveUdc, logCallback)) {
                      return true
                  }
-
-                 logCallback("[Gadget] Bind attempt $i failed. UDC='$currentUdc'")
                  Thread.sleep(800)
 
              } catch (e: Exception) {
                  logCallback("[Gadget] Exception during bind: ${e.message}")
              }
+        }
+        return false
+    }
+
+    /**
+     * Bind the gadget UDC using the sequence proven to work during enable:
+     * chmod, clear UDC, write, wait, verify readback. Captures and logs the
+     * kernel's stderr so a refused write is visible instead of silent.
+     */
+    private fun bindWithUdcName(udcName: String, logCallback: (String) -> Unit): Boolean {
+        try {
+            // Ensure UDC is writable and clear
+            Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod 666 $GADGET_ROOT/UDC")).waitFor()
+            Runtime.getRuntime().exec(arrayOf("su", "-c", "echo '' > $GADGET_ROOT/UDC")).waitFor()
+            Thread.sleep(200)
+
+            val writeOutput = runRootCommandGetOutput("echo \"$udcName\" > $GADGET_ROOT/UDC 2>&1; cat $GADGET_ROOT/UDC")
+            logCallback("[Gadget] UDC write result: '$writeOutput'")
+            val currentUdc = writeOutput.lines().lastOrNull()?.trim() ?: ""
+            if (currentUdc == udcName) {
+                Thread.sleep(300)
+                if (getUdcContent() == udcName) {
+                    return true
+                }
+            }
+            logCallback("[Gadget] Bind to $udcName did not stick. UDC='$currentUdc'")
+            Thread.sleep(300)
+        } catch (e: Exception) {
+            logCallback("[Gadget] Exception during bind: ${e.message}")
         }
         return false
     }
@@ -615,11 +708,6 @@ object UsbGadgetManager {
 
     private suspend fun disableGadgetInternal(logCallback: (String) -> Unit, settingsRepo: SettingsRepository? = null) {
         logCallback("[Gadget] Disabling USB gadget...")
-
-        // Try soft unbind first, fall back to hard
-        if (!softUnbind(logCallback)) {
-            hardUnbind(logCallback)
-        }
 
         // Restore strings if available
         var restored = false
@@ -645,13 +733,15 @@ object UsbGadgetManager {
             )) {}
         }
 
-        // Clean up our function links
+        // Remove OUR function links BEFORE the framework rebuild (left attached,
+        // they left a broken composite that killed USB).
         runRootCommands(listOf(
             "rm -f $GADGET_ROOT/configs/b.1/f1 || true",
             "rm -f $GADGET_ROOT/configs/b.1/f2 || true",
-            "rm -f $GADGET_ROOT/os_desc/b.1 || true",
             "rmdir $GADGET_ROOT/functions/uac1.0 2>/dev/null || true",
-            "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true"
+            "rmdir $GADGET_ROOT/functions/uac2.0 2>/dev/null || true",
+            "mkdir -p $GADGET_ROOT/os_desc",
+            "test -e $GADGET_ROOT/os_desc/b.1 || ln -sfn $GADGET_ROOT/configs/b.1 $GADGET_ROOT/os_desc/b.1"
         ), logCallback)
 
         // MTK Specific: Reset device mode
@@ -664,14 +754,117 @@ object UsbGadgetManager {
             // Ignore
         }
 
-        // Restore system USB control
-        restoreUsbConfig(settingsRepo, logCallback)
-        settingsRepo?.clearOriginalUsbConfig()
+        // Framework still owns the gadget: push a different settable function to force a
+        // teardown/rebuild, then return to the original function set.
+        val (savedSys, _) = settingsRepo?.getOriginalUsbConfig() ?: Pair(null, null)
+        val originalFn = getSettableFunctionFromConfig(savedSys)
+        val placeholder = if (originalFn == "mtp") "ptp" else (originalFn ?: "mtp")
+        val finalFn = originalFn ?: ""
 
-        // Restart USB HAL if we stopped it
-        startUsbHal(logCallback, settingsRepo)
+        // Restart adbd BEFORE the rebuild so its ffs monitor can rebind ffs.adb
+        // (Samsung HAL re-adds Adb on every function change).
+        runRootCommands(listOf("setprop ctl.start adbd"), logCallback)
+        logCallback("[Gadget] Restoring original USB configuration...")
+        runRootCommands(listOf("svc usb setFunctions $placeholder"), logCallback)
+        if (!waitForUdcBound(8000)) {
+            logCallback("[Gadget] WARNING: USB did not rebind during restore.")
+        }
+        val resetCommand = if (finalFn.isEmpty()) "svc usb setFunctions ''" else "svc usb setFunctions $finalFn"
+        runRootCommands(listOf(resetCommand), logCallback)
 
+        // Re-sync sys.usb.config: on QTI the '' reset pulls up adb but leaves the
+        // property "none", which would make isAdbCurrentlyActive() false next time.
+        val syncConfig = if (savedSys.isNullOrBlank()) {
+            runRootCommandGetOutput("getprop persist.sys.usb.config").ifBlank { "adb" }
+        } else {
+            savedSys
+        }
+        runRootCommands(listOf("setprop sys.usb.config $syncConfig"), logCallback)
+
+        // Restore attrs the framework won't reset (bcd, os_desc, config string).
+        val savedGadget = settingsRepo?.getOriginalGadgetState()
+        val attrCommands = mutableListOf<String>()
+        savedGadget?.ids?.lineSequence()?.forEach { line ->
+            when {
+                line.startsWith("bcd=") -> line.removePrefix("bcd=").trim().let {
+                    if (it.isNotEmpty()) attrCommands.add("echo $it > $GADGET_ROOT/bcdDevice")
+                }
+                line.startsWith("bcdusb=") -> line.removePrefix("bcdusb=").trim().let {
+                    if (it.isNotEmpty()) attrCommands.add("echo $it > $GADGET_ROOT/bcdUSB")
+                }
+            }
+        }
+        savedGadget?.osDesc?.lineSequence()?.forEach { line ->
+            when {
+                line.startsWith("use=") -> line.removePrefix("use=").trim().let {
+                    if (it.isNotEmpty()) attrCommands.add("echo $it > $GADGET_ROOT/os_desc/use")
+                }
+                line.startsWith("code=") -> line.removePrefix("code=").trim().let {
+                    if (it.isNotEmpty()) attrCommands.add("echo $it > $GADGET_ROOT/os_desc/b_vendor_code")
+                }
+                line.startsWith("qw=") -> line.removePrefix("qw=").trim().let {
+                    if (it.isNotEmpty()) attrCommands.add("echo $it > $GADGET_ROOT/os_desc/qw_sign")
+                }
+            }
+        }
+        if (!savedGadget?.configStr.isNullOrBlank()) {
+            attrCommands.add("mkdir -p $GADGET_ROOT/configs/b.1/strings/0x409")
+            attrCommands.add("echo \"${savedGadget?.configStr}\" > $GADGET_ROOT/configs/b.1/strings/0x409/configuration")
+        }
+        if (attrCommands.isNotEmpty()) {
+            runRootCommands(attrCommands, logCallback)
+        }
+
+        // Verify restore: UDC bound and our UAC function gone.
+        var verified = false
+        var restoredLinks = ""
+        var restoredUdc = ""
+        for (i in 1..20) {
+            Thread.sleep(300)
+            restoredLinks = runRootCommandGetOutput(
+                "ls -l $GADGET_ROOT/configs/b.1/ 2>/dev/null | sed -n 's/.* \\([^ /]*\\) -> \\(.*\\)/\\1=\\2/p'"
+            )
+            restoredUdc = getUdcContent()
+            if (restoredUdc.isNotEmpty() && restoredUdc != "none" &&
+                restoredLinks.isNotBlank() && !restoredLinks.contains("uac")) {
+                verified = true
+                break
+            }
+        }
+
+        if (verified) {
+            logCallback("[Gadget] Verified restore: links present, UDC bound to $restoredUdc.")
+            settingsRepo?.clearOriginalGadgetState()
+            settingsRepo?.clearOriginalUsbConfig()
+        } else {
+            logCallback("[Gadget] WARNING: could not restore USB configuration.")
+            logCallback("[Gadget] Fallback: asking system to restore USB config.")
+            restoreUsbConfig(settingsRepo, logCallback)
+            for (i in 1..12) {
+                Thread.sleep(500)
+                val cur = getUdcContent()
+                if (cur.isNotEmpty() && cur != "none") {
+                    verified = true
+                    logCallback("[Gadget] System rebind OK: UDC='$cur'.")
+                    break
+                }
+            }
+        }
+
+        if (!verified) {
+            logCallback("[Gadget] WARNING: could not restore USB gadget.")
+        }
         logCallback("[Gadget] Gadget disabled. USB restored to system control.")
+    }
+
+    private fun waitForUdcBound(timeoutMs: Int): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            Thread.sleep(250)
+            val udc = getUdcContent()
+            if (udc.isNotEmpty() && udc != "none") return true
+        }
+        return false
     }
 
     suspend fun applySeLinuxPolicy(logCallback: (String) -> Unit) {

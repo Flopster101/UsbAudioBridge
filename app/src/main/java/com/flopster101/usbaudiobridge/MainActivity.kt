@@ -254,6 +254,20 @@ class MainActivity : ComponentActivity() {
             withContext(Dispatchers.Main) {
                 isRootGranted = granted
             }
+            if (granted) {
+                val strategy = UsbGadgetManager.detectGadgetStrategy()
+                withContext(Dispatchers.Main) {
+                    uiState = uiState.copy(
+                        keepAdbSupported = strategy.supportsKeepAdb,
+                        keepAdbReason = strategy.keepAdbReason,
+                        usbEnvironmentLabel = strategy.label
+                    )
+                    if (!strategy.supportsKeepAdb && uiState.keepAdbOption) {
+                        uiState = uiState.copy(keepAdbOption = false)
+                        settingsRepo.saveKeepAdb(false)
+                    }
+                }
+            }
         }
     }
 
@@ -708,23 +722,28 @@ class MainActivity : ComponentActivity() {
 
     private fun restoreUiState() {
         audioService?.let { service ->
-             Thread {
-                 val gadgetActive = UsbGadgetManager.isGadgetActive()
-                 runOnUiThread {
-                     uiState = uiState.copy(isGadgetEnabled = gadgetActive)
-                     service.setGadgetEnabled(gadgetActive)
+            Thread {
+                val gadgetActive = UsbGadgetManager.isGadgetActive()
+                // Clear stale restore data when the gadget isn't active (crash/reboot)
+                if (!gadgetActive && settingsRepo.hasSavedRestoreState()) {
+                    settingsRepo.clearOriginalIdentity()
+                    settingsRepo.clearOriginalGadgetState()
+                    settingsRepo.clearOriginalUsbConfig()
+                    appendLog("[App] Cleared stale USB restore state from previous session.")
+                }
+                runOnUiThread {
+                    uiState = uiState.copy(isGadgetEnabled = gadgetActive)
+                    service.setGadgetEnabled(gadgetActive)
 
-                     if (service.isBridgeRunning) {
-                         uiState = uiState.copy(isServiceRunning = true)
-                         appendLog("[App] Restored connection to active stream")
-                     }
-                 }
-                 // Fetch and broadcast current state
-                 service.updateUiState()
-                 service.refreshNotification()
-                 // Fetch and broadcast gadget status
-                 service.broadcastGadgetStatus()
-             }.start()
+                    if (service.isBridgeRunning) {
+                        uiState = uiState.copy(isServiceRunning = true)
+                        appendLog("[App] Restored connection to active stream")
+                    }
+                }
+                service.updateUiState()
+                service.refreshNotification()
+                service.broadcastGadgetStatus()
+            }.start()
         }
     }
 

@@ -505,23 +505,46 @@ fun SettingsScreen(
 
         item {
             GroupedSettingsCard(position = SettingsGroupPosition.Bottom) {
-                ListItem(
-                    headlineContent = { Text("Keep ADB enabled") },
-                    supportingContent = {
-                        Text(
-                            text = "Forces ADB to remain active (Composite Gadget). May not work on some devices..",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = state.keepAdbOption,
-                            onCheckedChange = onKeepAdbChange
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ListItem(
+                        headlineContent = {
+                            Column {
+                                Text("Keep ADB enabled")
+                                state.usbEnvironmentLabel?.let {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
+                        supportingContent = {
+                            Text(
+                                text = if (state.keepAdbSupported) {
+                                    "Forces ADB to remain active (Composite Gadget). May not work on some devices.."
+                                } else {
+                                    state.keepAdbReason ?: "Not supported on this device."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (state.keepAdbSupported) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = state.keepAdbOption,
+                                enabled = state.keepAdbSupported,
+                                onCheckedChange = onKeepAdbChange
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
             }
         }
         item { Spacer(Modifier.height(20.dp)) }

@@ -18,6 +18,9 @@ data class MainUiState(
     val sampleRateOption: Int = 48000,
     val uacVersionOption: Int = 2, // 1 = UAC1, 2 = UAC2
     val keepAdbOption: Boolean = false,
+    val keepAdbSupported: Boolean = true,
+    val keepAdbReason: String? = null,
+    val usbEnvironmentLabel: String? = null,
     val autoRestartOnOutputChange: Boolean = false,
     val activeDirectionsOption: Int = 1, // 1=Speaker, 2=Mic, 3=Both
     val micSourceOption: Int = 6, // 6=VoiceRec (Default/Auto)

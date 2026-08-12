@@ -130,10 +130,51 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
-    // Persist stopped HAL service name to restore it later (even after app kill)
-    fun saveStoppedHalService(serviceName: String) = prefs.edit().putString("stopped_hal_service", serviceName).apply()
-    fun getStoppedHalService(): String? = prefs.getString("stopped_hal_service", null)
-    fun clearStoppedHalService() = prefs.edit().remove("stopped_hal_service").apply()
+    // True if original USB state was persisted (possibly stale after a crash)
+    fun hasSavedRestoreState(): Boolean {
+        return prefs.getString("orig_gadget_links", null) != null ||
+            prefs.getString("orig_sys_usb_config", null) != null ||
+            prefs.getString("orig_vendor_usb_config", null) != null ||
+            prefs.getString("orig_man", null) != null
+    }
+
+    fun saveOriginalGadgetState(links: String, ids: String, osDesc: String, configStr: String, udc: String) {
+        prefs.edit()
+            .putString("orig_gadget_links", links)
+            .putString("orig_gadget_ids", ids)
+            .putString("orig_gadget_osdesc", osDesc)
+            .putString("orig_gadget_config", configStr)
+            .putString("orig_gadget_udc", udc)
+            .apply()
+    }
+
+    fun getOriginalGadgetState(): State {
+        return State(
+            links = prefs.getString("orig_gadget_links", null),
+            ids = prefs.getString("orig_gadget_ids", null),
+            osDesc = prefs.getString("orig_gadget_osdesc", null),
+            configStr = prefs.getString("orig_gadget_config", null),
+            udc = prefs.getString("orig_gadget_udc", null)
+        )
+    }
+
+    data class State(
+        val links: String?,
+        val ids: String?,
+        val osDesc: String?,
+        val configStr: String?,
+        val udc: String?
+    )
+
+    fun clearOriginalGadgetState() {
+        prefs.edit()
+            .remove("orig_gadget_links")
+            .remove("orig_gadget_ids")
+            .remove("orig_gadget_osdesc")
+            .remove("orig_gadget_config")
+            .remove("orig_gadget_udc")
+            .apply()
+    }
 
     // Appearance
     fun saveThemeMode(mode: Int) = prefs.edit().putInt("theme_mode", mode).apply()
